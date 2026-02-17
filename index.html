@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Si-3.26 Аналитик | Автообновление 5 мин</title>
+    <title>Si-3.26 Аналитик | Вкладки таймфреймов</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
@@ -60,44 +60,53 @@
             height: 450px;
             width: 100%;
             position: relative;
+            background: var(--card);
+            border-radius: 12px;
+            overflow: hidden;
         }
 
         .timeframe-selector {
             display: flex;
-            gap: 6px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 16px;
             flex-wrap: wrap;
-            justify-content: center;
+            justify-content: flex-start;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
         }
 
         .tf-btn {
-            background: #21262d;
+            background: transparent;
             color: var(--text);
-            border: 1px solid var(--border);
-            padding: 8px 0;
-            border-radius: 40px;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 30px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
-            flex: 1 0 auto;
-            min-width: 60px;
-            max-width: 80px;
-            text-align: center;
+            position: relative;
+            opacity: 0.7;
         }
 
         .tf-btn.active {
             background: var(--accent);
-            border-color: var(--accent);
             color: white;
+            opacity: 1;
+            box-shadow: 0 2px 8px rgba(137, 87, 229, 0.3);
+        }
+
+        .tf-btn:hover {
+            opacity: 1;
+            background: rgba(137, 87, 229, 0.2);
         }
 
         .signal-display {
             text-align: center;
-            padding: 12px;
+            padding: 16px;
             border-radius: 16px;
             border: 2px solid var(--border);
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             transition: all 0.2s;
         }
 
@@ -122,7 +131,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin: 12px 0;
+            margin: 16px 0;
             padding: 8px 0;
             border-top: 1px solid var(--border);
             border-bottom: 1px solid var(--border);
@@ -137,10 +146,11 @@
 
         .timer {
             background: #21262d;
-            padding: 4px 10px;
+            padding: 4px 12px;
             border-radius: 20px;
             font-size: 13px;
             font-weight: 600;
+            font-family: monospace;
         }
 
         input[type="checkbox"] {
@@ -192,6 +202,8 @@
             margin: 10px 0 0;
             word-break: break-word;
             line-height: 1.5;
+            max-height: 200px;
+            overflow-y: auto;
         }
 
         .warning {
@@ -218,6 +230,7 @@
             box-shadow: 0 4px 12px black;
             white-space: nowrap;
             font-size: 14px;
+            z-index: 10;
         }
 
         .explain-card {
@@ -287,7 +300,7 @@
         @media (max-width: 600px) {
             body { padding: 8px; }
             .card { padding: 12px; border-radius: 16px; }
-            .tf-btn { font-size: 13px; min-width: 55px; }
+            .tf-btn { padding: 6px 16px; font-size: 13px; }
             #chart { height: 320px; }
             #signal_text { font-size: 22px !important; }
             button { padding: 14px 12px; font-size: 16px; }
@@ -299,13 +312,14 @@
     <h2>Анализ Si-3.26 (H6) / фьючерс SiH6</h2>
 
     <div class="grid">
-        <div class="card" id="chart">
+        <div class="card" id="chartContainer">
             <div class="timeframe-selector">
-                <button class="tf-btn active" data-tf="60">1ч</button>
-                <button class="tf-btn" data-tf="240">4ч</button>
-                <button class="tf-btn" data-tf="1440">1д</button>
-                <button class="tf-btn" data-tf="10080">1н</button>
+                <button class="tf-btn active" data-tf="60">1 час</button>
+                <button class="tf-btn" data-tf="240">4 часа</button>
+                <button class="tf-btn" data-tf="1440">1 день</button>
+                <button class="tf-btn" data-tf="10080">1 неделя</button>
             </div>
+            <div id="chart" style="height: 400px;"></div>
             <div id="loading">Загрузка данных MOEX...</div>
         </div>
 
@@ -360,7 +374,8 @@
         let useProxy = false;
         let autoUpdateInterval = null;
         let countdownInterval = null;
-        let countdownSeconds = 300; // 5 минут = 300 секунд
+        let countdownSeconds = 300;
+        let currentChart = null;
 
         const tfMap = {
             60: 60,
@@ -369,7 +384,7 @@
             10080: 7
         };
 
-        // Загрузка данных
+        // Загрузка данных с MOEX
         async function fetchMoexData(timeframe = 60) {
             const loadingEl = document.getElementById('loading');
             loadingEl.style.display = 'block';
@@ -391,14 +406,20 @@
                 }
                 
                 const raw = data.candles.data;
-                historyData = raw.map(c => ({
-                    time: c[6].split('T')[0],
-                    open: c[0],
-                    high: c[2],
-                    low: c[3],
-                    close: c[1]
-                }));
+                // Формат: [open, close, high, low, ..., begin]
+                historyData = raw.map(c => {
+                    // begin может быть в формате "2025-11-01 10:00:00"
+                    const dateStr = c[6].split(' ')[0]; // берём только дату
+                    return {
+                        time: dateStr,
+                        open: c[0],
+                        high: c[2],
+                        low: c[3],
+                        close: c[1]
+                    };
+                });
 
+                // Удаляем старый график и создаём новый
                 renderChart(historyData);
                 loadingEl.style.display = 'none';
                 updateTfDescription(timeframe);
@@ -416,22 +437,47 @@
             }
             
             const chartContainer = document.getElementById('chart');
-            const oldCanvas = chartContainer.querySelector('canvas');
-            if (oldCanvas) oldCanvas.remove();
             
-            const chart = LightweightCharts.createChart(chartContainer, {
-                layout: { background: { color: '#161b22' }, textColor: '#d1d4dc' },
-                grid: { vertLines: { color: '#30363d' }, horzLines: { color: '#30363d' } },
-                timeScale: { borderColor: '#30363d' },
+            // Полностью очищаем контейнер (удаляем всё содержимое)
+            chartContainer.innerHTML = '';
+            
+            // Создаём новый график
+            currentChart = LightweightCharts.createChart(chartContainer, {
+                layout: { 
+                    background: { color: '#161b22' }, 
+                    textColor: '#d1d4dc',
+                    fontSize: 12,
+                },
+                grid: { 
+                    vertLines: { color: '#30363d' }, 
+                    horzLines: { color: '#30363d' } 
+                },
+                timeScale: { 
+                    borderColor: '#30363d',
+                    timeVisible: false,
+                },
                 crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                width: chartContainer.clientWidth,
+                height: 400,
             });
             
-            const series = chart.addCandlestickSeries({ 
-                upColor: '#238636', downColor: '#f85149', 
-                borderVisible: false, wickVisible: true 
+            const series = currentChart.addCandlestickSeries({ 
+                upColor: '#238636', 
+                downColor: '#f85149', 
+                borderVisible: false, 
+                wickVisible: true,
+                priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
             });
+            
             series.setData(data);
-            chart.timeScale().fitContent();
+            currentChart.timeScale().fitContent();
+            
+            // Обработка изменения размера окна
+            window.addEventListener('resize', () => {
+                if (currentChart) {
+                    currentChart.applyOptions({ width: chartContainer.clientWidth });
+                }
+            });
         }
 
         function updateTfDescription(tf) {
@@ -446,7 +492,7 @@
             descEl.innerHTML = text;
         }
 
-        // Переключение таймфрейма
+        // Переключение таймфрейма через вкладки
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('tf-btn')) {
                 document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.remove('active'));
@@ -457,7 +503,7 @@
             }
         });
 
-        // Улучшенный промпт для DeepSeek с техническими индикаторами
+        // Улучшенный промпт для DeepSeek
         async function analyzeWithAI() {
             const apiKey = document.getElementById('api_key_input').value.trim();
             if (!apiKey) {
@@ -479,9 +525,8 @@
             else if (currentTf === 1440) tfName = '1 день';
             else if (currentTf === 10080) tfName = '1 неделя';
             
-            // Промпт с явным запросом значений индикаторов
             const requestBody = {
-                model: "deepseek/deepseek-chat", // актуальная модель DeepSeek-V3 на OpenRouter
+                model: "deepseek/deepseek-chat",
                 messages: [{
                     role: "user",
                     content: `Ты профессиональный трейдер. Инструмент: ${TICKER} (фьючерс на доллар/рубль). Таймфрейм: ${tfName}. Данные свечей (дата, open, high, low, close) за последние 30 периодов: ${JSON.stringify(lastData)}.
@@ -541,7 +586,6 @@
 
                 descEl.innerText = answer.substring(0, 500) + (answer.length > 500 ? "…" : "");
                 
-                // Сброс таймера после успешного анализа (для автообновления)
                 resetCountdown();
                 
             } catch (e) {
@@ -557,18 +601,15 @@
             if (autoUpdateInterval) clearInterval(autoUpdateInterval);
             if (countdownInterval) clearInterval(countdownInterval);
             
-            // Сброс счётчика
             countdownSeconds = 300;
             updateTimerDisplay();
             
-            // Интервал обновления анализа (5 минут)
             autoUpdateInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
                     analyzeWithAI();
                 }
-            }, 300000); // 300 000 мс = 5 минут
+            }, 300000);
             
-            // Таймер обратного отсчёта (обновление каждую секунду)
             countdownInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
                     countdownSeconds--;
@@ -602,7 +643,6 @@
                 `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
 
-        // Обработчик чекбокса автообновления
         document.getElementById('autoUpdateCheck').addEventListener('change', function(e) {
             if (e.target.checked) {
                 startAutoUpdate();
