@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Si-3.26 Аналитик | Мультитаймфрейм</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Si-3.26 Аналитик | Адаптивный мультитаймфрейм</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
@@ -18,64 +18,72 @@
 
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: var(--bg);
             color: var(--text);
-            padding: 16px;
-            margin: 0;
+            padding: 12px;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
         h2 {
             text-align: center;
             font-size: clamp(1.2rem, 5vw, 1.8rem);
-            margin: 0 0 16px 0;
+            margin: 0 0 12px 0;
+            font-weight: 500;
         }
 
         .grid {
             display: grid;
             grid-template-columns: 2fr 1fr;
-            gap: 20px;
+            gap: 16px;
             max-width: 1400px;
             margin: 0 auto;
+            width: 100%;
         }
 
         .card {
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 20px;
+            border-radius: 20px;
+            padding: 16px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         #chart {
-            height: 500px;
+            height: 450px;
             width: 100%;
             position: relative;
         }
 
         .timeframe-selector {
             display: flex;
-            gap: 8px;
-            margin-bottom: 15px;
+            gap: 6px;
+            margin-bottom: 12px;
             flex-wrap: wrap;
+            justify-content: center;
         }
 
         .tf-btn {
             background: #21262d;
             color: var(--text);
             border: 1px solid var(--border);
-            padding: 8px 16px;
-            border-radius: 20px;
+            padding: 8px 0;
+            border-radius: 40px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
-            flex: 1;
+            flex: 1 0 auto;
             min-width: 60px;
+            max-width: 80px;
+            text-align: center;
         }
 
         .tf-btn.active {
@@ -86,10 +94,10 @@
 
         .signal-display {
             text-align: center;
-            padding: 15px;
-            border-radius: 12px;
+            padding: 12px;
+            border-radius: 16px;
             border: 2px solid var(--border);
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             transition: all 0.2s;
         }
 
@@ -116,7 +124,7 @@
             background: #0d1117;
             color: white;
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 12px;
             margin-top: 8px;
             font-size: 16px;
         }
@@ -127,11 +135,11 @@
             border: none;
             padding: 14px 16px;
             cursor: pointer;
-            border-radius: 8px;
+            border-radius: 14px;
             width: 100%;
             font-weight: 600;
             font-size: 16px;
-            margin-top: 12px;
+            margin-top: 10px;
             transition: opacity 0.2s;
             -webkit-tap-highlight-color: transparent;
         }
@@ -150,7 +158,7 @@
         .info {
             font-size: 13px;
             color: #8b949e;
-            margin: 12px 0 0;
+            margin: 10px 0 0;
             word-break: break-word;
             line-height: 1.5;
         }
@@ -158,7 +166,7 @@
         .warning {
             color: #f85149;
             font-size: 12px;
-            margin: 12px 0 0;
+            margin: 10px 0 0;
             line-height: 1.5;
         }
 
@@ -173,56 +181,139 @@
             left: 50%;
             transform: translate(-50%, -50%);
             background: var(--card);
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 40px;
             border: 1px solid var(--border);
             box-shadow: 0 4px 12px black;
             white-space: nowrap;
+            font-size: 14px;
         }
 
+        /* Блок объяснения — теперь сворачиваемый на мобильных */
         .explain-card {
-            margin-top: 20px;
+            margin-top: 16px;
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 20px;
+            border-radius: 20px;
+            padding: 16px;
+            width: 100%;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .explain-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
         }
 
         .explain-title {
             color: var(--accent);
             font-weight: 600;
-            margin-bottom: 12px;
             font-size: 16px;
         }
 
-        .explain-text {
+        .explain-toggle {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 20px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            margin: 0;
+            background: #21262d;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .explain-content {
+            margin-top: 16px;
             font-size: 14px;
             line-height: 1.6;
             color: #8b949e;
+            transition: all 0.3s;
         }
 
-        .explain-text strong {
+        .explain-content.collapsed {
+            display: none;
+        }
+
+        .explain-content strong {
             color: var(--text);
         }
 
-        @media (max-width: 768px) {
-            body { padding: 10px; }
-            .grid { grid-template-columns: 1fr; gap: 16px; }
-            #chart { height: 380px; }
-            .tf-btn { padding: 10px 12px; font-size: 13px; }
-            #signal_text { font-size: 22px !important; }
-            button { padding: 16px; font-size: 18px; }
-            input { font-size: 18px; padding: 14px; }
+        /* Адаптивность */
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            #chart {
+                height: 400px;
+            }
         }
 
-        @media (max-width: 480px) {
-            #chart { height: 300px; }
-            h2 { font-size: 1.3rem; }
+        @media (max-width: 600px) {
+            body {
+                padding: 8px;
+            }
+            .card {
+                padding: 12px;
+                border-radius: 16px;
+            }
+            .tf-btn {
+                font-size: 13px;
+                padding: 8px 0;
+                min-width: 55px;
+            }
+            #chart {
+                height: 320px;
+            }
+            .signal-display {
+                padding: 10px;
+            }
+            #signal_text {
+                font-size: 22px !important;
+            }
+            button {
+                padding: 14px 12px;
+                font-size: 16px;
+                border-radius: 12px;
+            }
+            input {
+                font-size: 16px;
+                padding: 12px;
+            }
+            .explain-card {
+                padding: 12px;
+                border-radius: 16px;
+            }
+            .explain-title {
+                font-size: 15px;
+            }
         }
 
-        @media (min-width: 1600px) {
-            .grid { max-width: 1600px; }
-            #chart { height: 600px; }
+        @media (max-width: 400px) {
+            .tf-btn {
+                min-width: 50px;
+                font-size: 12px;
+            }
+            #chart {
+                height: 280px;
+            }
+        }
+
+        @media (min-width: 1400px) {
+            #chart {
+                height: 550px;
+            }
         }
     </style>
 </head>
@@ -243,11 +334,11 @@
         <div class="side">
             <div class="card">
                 <div id="signal_ui" class="signal-display hold">
-                    <div style="font-size: 12px; opacity: 0.7;">DEEPSEEK V3 SIGNAL</div>
+                    <div style="font-size: 11px; opacity: 0.7; letter-spacing: 0.5px;">DEEPSEEK V3 SIGNAL</div>
                     <div id="signal_text" style="font-size: 26px; font-weight: bold;">ОЖИДАНИЕ</div>
                 </div>
                 <div id="ai_desc" class="info">Нажмите кнопку для AI‑анализа</div>
-                <button onclick="analyzeWithAI()">ЗАПУСТИТЬ AI АНАЛИЗ</button>
+                <button onclick="analyzeWithAI()">🚀 ЗАПУСТИТЬ AI АНАЛИЗ</button>
                 <button class="small" onclick="toggleProxy()" id="proxyBtn">🔁 CORS-прокси: ВЫКЛ</button>
                 <p class="warning">
                     ⚠️ Если AI выдаёт ошибку CORS, установите расширение 
@@ -255,48 +346,49 @@
                 </p>
             </div>
 
-            <div class="card" style="margin-top: 20px;">
+            <div class="card" style="margin-top: 16px;">
                 <label style="font-weight: 500;">🔑 OpenRouter API Key:</label>
                 <input type="password" id="api_key_input" placeholder="sk-or-v1-..." value="">
-                <button style="background: #21262d;" onclick="saveConfig()">Сохранить ключ</button>
+                <button style="background: #21262d;" onclick="saveConfig()">💾 Сохранить ключ</button>
             </div>
         </div>
     </div>
 
-    <!-- Блок с объяснением анализа DeepSeek -->
+    <!-- Сворачиваемый блок с объяснением -->
     <div class="explain-card">
-        <div class="explain-title">🔍 Как DeepSeek анализирует график</div>
-        <div class="explain-text" id="explainText">
+        <div class="explain-header" onclick="toggleExplain()">
+            <span class="explain-title">📘 Как DeepSeek анализирует график</span>
+            <span class="explain-toggle" id="explainToggle">−</span>
+        </div>
+        <div class="explain-content" id="explainContent">
             <strong>Технические индикаторы:</strong> RSI (14), MACD, скользящие средние (EMA20/50/200), уровни поддержки/сопротивления, анализ объёмов.<br>
-            <strong>Таймфреймы:</strong> 1ч — для входа, 4ч — структура тренда, 1д — глобальный тренд, 1н — долгосрочная перспектива.<br>
-            <strong>Подход:</strong> DeepSeek получает свечные данные, рассчитывает индикаторы и выдаёт сигнал на основе многофакторного анализа [citation:1][citation:2].
+            <span id="tfDescription"></span><br>
+            <strong>Подход:</strong> DeepSeek получает свечные данные, рассчитывает индикаторы и выдаёт сигнал на основе многофакторного анализа .
         </div>
     </div>
 
     <script>
         const TICKER = "SiH6";
         let historyData = [];
-        let currentTf = 60; // текущий таймфрейм в минутах
+        let currentTf = 60;
         let useProxy = false;
 
-        // Соответствие таймфреймов интервалам MOEX
         const tfMap = {
-            60: 60,     // 1 час
-            240: 4,     // 4 часа (в MOEX это 4H)
-            1440: 24,   // 1 день
-            10080: 7    // 1 неделя (в MOEX это 7 дней)
+            60: 60,
+            240: 4,
+            1440: 24,
+            10080: 7
         };
 
-        // Загрузка данных с выбранным таймфреймом
+        // Загрузка данных
         async function fetchMoexData(timeframe = 60) {
             const loadingEl = document.getElementById('loading');
             loadingEl.style.display = 'block';
             loadingEl.innerText = 'Загрузка данных MOEX...';
 
             const interval = tfMap[timeframe] || 24;
-            // Для разных интервалов нужна разная глубина истории
             let fromDate = '2025-10-01';
-            if (timeframe === 10080) fromDate = '2025-07-01'; // для недель берём больше истории
+            if (timeframe === 10080) fromDate = '2025-07-01';
 
             const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=${interval}&from=${fromDate}`;
             
@@ -320,9 +412,7 @@
 
                 renderChart(historyData);
                 loadingEl.style.display = 'none';
-                
-                // Обновляем описание таймфрейма
-                updateTimeframeDescription(timeframe);
+                updateTfDescription(timeframe);
                 
             } catch (err) {
                 loadingEl.innerHTML = `❌ Ошибка MOEX: ${err.message}<br>Проверьте консоль (F12).`;
@@ -336,8 +426,8 @@
                 return;
             }
             
-            // Очищаем предыдущий график
             const chartContainer = document.getElementById('chart');
+            // Очищаем предыдущий график (удаляем канвас)
             const oldCanvas = chartContainer.querySelector('canvas');
             if (oldCanvas) oldCanvas.remove();
             
@@ -356,50 +446,30 @@
             chart.timeScale().fitContent();
         }
 
-        // Обновление текста объяснения в зависимости от таймфрейма
-        function updateTimeframeDescription(tf) {
-            const explainEl = document.getElementById('explainText');
-            let analysisType = '';
-            
+        function updateTfDescription(tf) {
+            const descEl = document.getElementById('tfDescription');
+            let text = '';
             switch(tf) {
-                case 60:
-                    analysisType = '🔹 <strong>1-часовой таймфрейм</strong> — анализ краткосрочных движений, поиск точек входа, RSI и MACD для точного входа.';
-                    break;
-                case 240:
-                    analysisType = '🔸 <strong>4-часовой таймфрейм</strong> — определение структуры рынка, уровни поддержки/сопротивления, среднесрочный тренд.';
-                    break;
-                case 1440:
-                    analysisType = '📊 <strong>Дневной таймфрейм</strong> — глобальный тренд, ключевые уровни, EMA50/200, фундаментальные изменения.';
-                    break;
-                case 10080:
-                    analysisType = '📈 <strong>Недельный таймфрейм</strong> — долгосрочная перспектива, макротренды, стратегические уровни.';
-                    break;
+                case 60: text = '🔹 <strong>1-часовой таймфрейм</strong> — анализ краткосрочных движений, поиск точек входа.'; break;
+                case 240: text = '🔸 <strong>4-часовой таймфрейм</strong> — определение структуры рынка, среднесрочный тренд.'; break;
+                case 1440: text = '📊 <strong>Дневной таймфрейм</strong> — глобальный тренд, ключевые уровни.'; break;
+                case 10080: text = '📈 <strong>Недельный таймфрейм</strong> — долгосрочная перспектива, макротренды.'; break;
             }
-            
-            explainEl.innerHTML = `
-                <strong>Технические индикаторы:</strong> RSI (14), MACD, скользящие средние (EMA20/50/200), уровни поддержки/сопротивления, анализ объёмов.<br>
-                ${analysisType}<br>
-                <strong>Подход:</strong> DeepSeek получает свечные данные, рассчитывает индикаторы и выдаёт сигнал на основе многофакторного анализа [citation:1][citation:2].
-            `;
+            descEl.innerHTML = text;
         }
 
         // Переключение таймфрейма
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('tf-btn')) {
-                // Обновляем активную кнопку
                 document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.remove('active'));
                 e.target.classList.add('active');
-                
-                // Получаем новый таймфрейм
                 const newTf = parseInt(e.target.dataset.tf);
                 currentTf = newTf;
-                
-                // Загружаем данные
                 fetchMoexData(newTf);
             }
         });
 
-        // AI анализ с учётом текущего таймфрейма
+        // AI анализ
         async function analyzeWithAI() {
             const apiKey = document.getElementById('api_key_input').value.trim();
             if (!apiKey) {
@@ -414,9 +484,8 @@
             document.getElementById('signal_text').innerText = "АНАЛИЗ...";
             document.getElementById('ai_desc').innerText = "Запрос к DeepSeek...";
 
-            const lastData = historyData.slice(-30); // больше данных для анализа
+            const lastData = historyData.slice(-30);
             
-            // Определяем название таймфрейма для промпта
             let tfName = '1 час';
             if (currentTf === 240) tfName = '4 часа';
             else if (currentTf === 1440) tfName = '1 день';
@@ -503,10 +572,23 @@
             document.getElementById('proxyBtn').innerText = useProxy ? "🔁 CORS-прокси: ВКЛ" : "🔁 CORS-прокси: ВЫКЛ";
         }
 
+        // Сворачивание блока объяснения на мобильных
+        window.toggleExplain = function() {
+            const content = document.getElementById('explainContent');
+            const toggle = document.getElementById('explainToggle');
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                toggle.innerText = '−';
+            } else {
+                content.classList.add('collapsed');
+                toggle.innerText = '+';
+            }
+        };
+
         window.onload = () => {
             const savedKey = localStorage.getItem('si_key');
             if (savedKey) document.getElementById('api_key_input').value = savedKey;
-            fetchMoexData(60); // по умолчанию 1 час
+            fetchMoexData(60);
         };
     </script>
 </body>
