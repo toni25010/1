@@ -2,102 +2,167 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>MOEX Si Аналитика напрямую</title>
+    <title>Si-3.26 Аналитик | MOEX + DeepSeek</title>
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-    <!-- Подключаем легкую библиотеку для графиков -->
     <script src="https://unpkg.com"></script>
     <style>
-        body { font-family: sans-serif; background: #131722; color: white; margin: 20px; }
-        .container { display: flex; gap: 20px; flex-wrap: wrap; }
-        .chart-box { flex: 2; min-width: 600px; height: 500px; background: #1e222d; border-radius: 8px; position: relative; }
-        .manual-input { flex: 1; min-width: 300px; background: #1e222d; padding: 20px; border-radius: 8px; box-sizing: border-box; }
-        textarea { width: 100%; height: 150px; margin-top: 10px; background: #2a2e39; color: white; border: 1px solid #363c4e; padding: 10px; box-sizing: border-box; }
-        button { background: #2962ff; color: white; border: none; padding: 12px; cursor: pointer; border-radius: 4px; margin-top: 10px; width: 100%; }
-        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #848e9c; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --accent: #8957e5; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; max-width: 1400px; margin: 0 auto; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        #chart { height: 550px; width: 100%; position: relative; }
+        .signal-display { text-align: center; padding: 15px; border-radius: 10px; border: 2px solid var(--border); margin-bottom: 15px; }
+        .buy { border-color: #238636; color: #3fb950; background: rgba(35, 134, 54, 0.1); }
+        .sell { border-color: #f85149; color: #f85149; background: rgba(248, 81, 73, 0.1); }
+        .hold { border-color: #8b949e; color: #8b949e; }
+        input, textarea { width: 100%; padding: 10px; background: #0d1117; color: white; border: 1px solid var(--border); border-radius: 6px; margin-top: 5px; box-sizing: border-box; }
+        button { background: var(--accent); color: white; border: none; padding: 14px; cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold; margin-top: 10px; }
+        #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #8b949e; }
     </style>
 </head>
 <body>
 
-    <h1>Анализ Si (ISS MOEX API Direct)</h1>
+    <h2 style="text-align: center;">Si-3.26 (H6) Анализ тренда</h2>
 
-    <div class="container">
-        <div class="chart-box" id="chart_container">
-            <div id="loading">Загрузка данных с Московской биржи...</div>
+    <div class="grid">
+        <div class="card" id="chart">
+            <div id="loading-text">Загрузка данных из системы ISS MOEX...</div>
         </div>
 
-        <div class="manual-input">
-            <h2>Заметки трейдера</h2>
-            <label>Тренд:</label>
-            <select id="trend" style="width:100%; padding:8px; background:#2a2e39; color:white; border:1px solid #363c4e;">
-                <option value="up">Long</option>
-                <option value="down">Short</option>
-                <option value="flat">Flat</option>
-            </select>
-            <textarea id="newsInput" placeholder="События дня..."></textarea>
-            <button onclick="saveAnalysis()">Сохранить данные</button>
-            <div id="savedStatus" style="color:#00ff00; margin-top:10px;"></div>
+        <div class="side">
+            <div class="card">
+                <div id="signal_ui" class="signal-display hold">
+                    <div style="font-size: 11px; opacity: 0.7;">ВЕРДИКТ DEEPSEEK V3</div>
+                    <div id="signal_text" style="font-size: 28px; font-weight: bold;">ОЖИДАНИЕ</div>
+                </div>
+                <div id="ai_desc" style="font-size: 13px; color: #8b949e; min-height: 40px;">Нажмите кнопку для запуска AI-фильтрации шума.</div>
+                <button onclick="analyzeWithAI()">ЗАПУСТИТЬ AI АНАЛИЗ</button>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <label>OpenRouter API Key:</label>
+                <input type="password" id="api_key_input" placeholder="sk-or-v1-...">
+                <label style="display:block; margin-top:10px;">Заметки:</label>
+                <textarea id="notes_area" rows="3"></textarea>
+                <button style="background: #21262d;" onclick="saveConfig()">Сохранить настройки</button>
+            </div>
         </div>
     </div>
 
     <script>
-        // Настройки инструмента
-        const ticker = "SiH6"; // Фьючерс на март 2026
+        const TICKER = "SiH6"; 
+        let historyData = [];
 
+        // 1. ЗАГРУЗКА ДАННЫХ MOEX
         async function fetchMoexData() {
+            const url = `https://iss.moex.com{TICKER}/candles.json?interval=24&from=2025-11-01`;
             try {
-                // Прямой запрос к API MOEX (свечи за последние 100 дней)
-                const response = await fetch(`https://iss.moex.com{ticker}/candles.json?interval=24&from=2025-10-01`);
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Сетевая ошибка');
                 const data = await response.json();
                 
-                const candles = data.candles.data.map(item => ({
-                    time: item[6].split(' ')[0], // Формат YYYY-MM-DD
-                    open: item[0],
-                    high: item[2],
-                    low: item[3],
-                    close: item[1]
+                // MOEX возвращает данные в data.candles.data
+                // Структура массива: [open, close, high, low, value, volume, begin, end]
+                const rawCandles = data.candles.data;
+                
+                historyData = rawCandles.map(c => ({
+                    time: c[6].split(' ')[0], // берем дату из 'begin'
+                    open: c[0],
+                    high: c[2],
+                    low: c[3],
+                    close: c[1]
                 }));
 
-                drawChart(candles);
-                document.getElementById('loading').style.display = 'none';
-            } catch (e) {
-                document.getElementById('loading').innerText = "Ошибка загрузки данных MOEX";
-                console.error(e);
+                renderChart(historyData);
+                document.getElementById('loading-text').style.display = 'none';
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading-text').innerText = "Ошибка: ISS MOEX недоступен (проверьте интернет)";
             }
         }
 
-        function drawChart(data) {
-            const chart = LightweightCharts.createChart(document.getElementById('chart_container'), {
-                layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' },
-                grid: { vertLines: { color: '#334158' }, horzLines: { color: '#334158' } },
-                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-                timeScale: { borderColor: '#485c7b' }
+        // 2. ОТРИСОВКА ГРАФИКА
+        function renderChart(data) {
+            const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+                layout: { background: { color: '#161b22' }, textColor: '#d1d4dc' },
+                grid: { vertLines: { color: '#30363d' }, horzLines: { color: '#30363d' } },
             });
-
-            const candlestickSeries = chart.addCandlestickSeries({
-                upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
-                wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+            const candleSeries = chart.addCandlestickSeries({
+                upColor: '#238636', downColor: '#f85149', borderVisible: false,
+                wickUpColor: '#238636', wickDownColor: '#f85149'
             });
-
-            candlestickSeries.setData(data);
+            candleSeries.setData(data);
+            chart.timeScale().fitContent();
         }
 
-        function saveAnalysis() {
-            const analysis = {
-                news: document.getElementById('newsInput').value,
-                trend: document.getElementById('trend').value,
-                date: new Date().toLocaleString()
-            };
-            localStorage.setItem('moex_si_data', JSON.stringify(analysis));
-            document.getElementById('savedStatus').innerText = "Сохранено: " + analysis.date;
+        // 3. AI АНАЛИЗ (DeepSeek V3)
+        async function analyzeWithAI() {
+            const apiKey = document.getElementById('api_key_input').value;
+            if (!apiKey) return alert("Нужен API Ключ OpenRouter");
+
+            const stext = document.getElementById('signal_text');
+            const sdesc = document.getElementById('ai_desc');
+            const sui = document.getElementById('signal_ui');
+
+            stext.innerText = "РАСЧЕТ...";
+            
+            // Берем последние 30 дней
+            const sample = historyData.slice(-30);
+
+            try {
+                const res = await fetch("https://openrouter.ai", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${apiKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        "model": "deepseek/deepseek-chat", 
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "Ты - финансовый аналитик. Твоя цель - определить тренд SiH6, игнорируя боковой шум. Отвечай кратко."
+                            },
+                            {
+                                "role": "user",
+                                "content": `Данные OHLC: ${JSON.stringify(sample)}. Выдай вердикт (ПОКУПКА, ПРОДАЖА или ДЕРЖАТЬ) и обоснуй отсутствие шума.`
+                            }
+                        ]
+                    })
+                });
+
+                const aiRes = await res.json();
+                const answer = aiRes.choices[0].message.content.toUpperCase();
+
+                sui.className = "signal-display";
+                if (answer.includes("ПОКУПКА")) {
+                    sui.classList.add("buy");
+                    stext.innerText = "ПОКУПКА";
+                } else if (answer.includes("ПРОДАЖА")) {
+                    sui.classList.add("sell");
+                    stext.innerText = "ПРОДАЖА";
+                } else {
+                    sui.classList.add("hold");
+                    stext.innerText = "ДЕРЖАТЬ";
+                }
+                sdesc.innerText = aiRes.choices[0].message.content;
+
+            } catch (e) {
+                stext.innerText = "ОШИБКА";
+                sdesc.innerText = "Ошибка запроса к API. Проверьте ключ.";
+            }
+        }
+
+        function saveConfig() {
+            localStorage.setItem('si_key', document.getElementById('api_key_input').value);
+            localStorage.setItem('si_notes', document.getElementById('notes_area').value);
+            alert("Настройки сохранены");
         }
 
         window.onload = () => {
             fetchMoexData();
-            const saved = JSON.parse(localStorage.getItem('moex_si_data'));
-            if (saved) {
-                document.getElementById('newsInput').value = saved.news;
-                document.getElementById('trend').value = saved.trend;
-            }
+            document.getElementById('api_key_input').value = localStorage.getItem('si_key') || "";
+            document.getElementById('notes_area').value = localStorage.getItem('si_notes') || "";
         };
     </script>
 </body>
