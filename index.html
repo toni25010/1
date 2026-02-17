@@ -2,8 +2,9 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Si-3.26 Аналитик | Исправленная версия</title>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <title>Si-3.26 Аналитик | Финальная версия</title>
+    <!-- Подключаем конкретную версию lightweight-charts (4.0.1) -->
+    <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --accent: #8957e5; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
@@ -26,7 +27,7 @@
 
     <div class="grid">
         <div class="card" id="chart">
-            <div id="loading" style="position:absolute; top:45%; left:35%; background: #161b22; padding: 10px;">Загрузка данных MOEX...</div>
+            <div id="loading" style="position:absolute; top:45%; left:35%; background: #161b22; padding: 10px; border-radius: 8px;">Загрузка данных MOEX...</div>
         </div>
 
         <div class="side">
@@ -38,16 +39,17 @@
                 <div id="ai_desc" class="info">Нажмите кнопку для AI‑анализа</div>
                 <button onclick="analyzeWithAI()">ЗАПУСТИТЬ AI АНАЛИЗ</button>
                 <button class="small" onclick="toggleProxy()" id="proxyBtn">🔁 CORS-прокси: ВЫКЛ</button>
+                <p class="warning">
+                    ⚠️ Если AI выдаёт ошибку CORS, <strong>установите расширение для браузера</strong> (например, 
+                    <a href="https://chrome.google.com/webstore/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigbkjea" target="_blank" style="color:#58a6ff;">Allow CORS</a>) 
+                    или включите прокси-кнопкой выше (может не работать с POST-запросами).
+                </p>
             </div>
 
             <div class="card" style="margin-top: 20px;">
                 <label>🔑 OpenRouter API Key:</label>
                 <input type="password" id="api_key_input" placeholder="sk-or-v1-..." value="">
                 <button style="background: #21262d;" onclick="saveConfig()">Сохранить ключ</button>
-                <p class="warning">
-                    ⚠️ Если AI выдаёт ошибку CORS, включите CORS-прокси кнопкой выше или установите расширение браузера "Allow CORS".<br>
-                    Прокси работает через https://corsproxy.io/? , не используйте для конфиденциальных данных.
-                </p>
             </div>
         </div>
     </div>
@@ -55,28 +57,29 @@
     <script>
         const TICKER = "SiH6";
         let historyData = [];
-        let useProxy = false; // переключатель для CORS-прокси
+        let useProxy = false;
 
-        // ---- ЗАГРУЗКА ДАННЫХ С MOEX (исправлено) ----
+        // ---- ЗАГРУЗКА ДАННЫХ С MOEX ----
         async function fetchMoexData() {
-            showLoading(true);
-            // Правильный endpoint для свечей фьючерса на валюту
-            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=24&from=2025-11-01`;
+            const loadingEl = document.getElementById('loading');
+            loadingEl.style.display = 'block';
+            loadingEl.innerText = 'Загрузка данных MOEX...';
+
+            // Используем правильный endpoint для фьючерса на валюту
+            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=24&from=2025-10-01`; // более ранняя дата
             
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 
-                // MOEX возвращает свечи в data.candles.data
                 if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
-                    throw new Error("Нет данных за указанный период. Возможно, контракт ещё не торговался.");
+                    throw new Error("Нет данных за указанный период. Попробуйте изменить дату.");
                 }
                 
                 const raw = data.candles.data;
-                // Формат строки: [open, close, high, low, value, volume, begin, end]
                 historyData = raw.map(c => ({
-                    time: c[6].split('T')[0], // begin в формате ISO, берём только дату
+                    time: c[6].split('T')[0], // дата из begin
                     open: c[0],
                     high: c[2],
                     low: c[3],
@@ -84,31 +87,35 @@
                 }));
 
                 renderChart(historyData);
-                document.getElementById('loading').style.display = 'none';
+                loadingEl.style.display = 'none';
             } catch (err) {
-                document.getElementById('loading').innerHTML = `❌ Ошибка MOEX: ${err.message}`;
+                loadingEl.innerHTML = `❌ Ошибка MOEX: ${err.message}<br>Проверьте консоль (F12) для деталей.`;
                 console.error("MOEX Error:", err);
             }
         }
 
         function renderChart(data) {
+            // Проверяем, что библиотека загружена
+            if (typeof LightweightCharts === 'undefined') {
+                document.getElementById('loading').innerHTML = '❌ Библиотека графиков не загрузилась. Обновите страницу.';
+                return;
+            }
             const chart = LightweightCharts.createChart(document.getElementById('chart'), {
                 layout: { background: { color: '#161b22' }, textColor: '#d1d4dc' },
                 grid: { vertLines: { color: '#30363d' }, horzLines: { color: '#30363d' } },
-                timeScale: { timeVisible: false, borderColor: '#30363d' },
+                timeScale: { borderColor: '#30363d' },
             });
+            // Убедимся, что метод существует
+            if (typeof chart.addCandlestickSeries !== 'function') {
+                document.getElementById('loading').innerHTML = '❌ Метод addCandlestickSeries не найден. Версия библиотеки устарела.';
+                return;
+            }
             const series = chart.addCandlestickSeries({ 
                 upColor: '#238636', downColor: '#f85149', 
                 borderVisible: false, wickVisible: true 
             });
             series.setData(data);
             chart.timeScale().fitContent();
-        }
-
-        function showLoading(show) {
-            const el = document.getElementById('loading');
-            if (show) el.style.display = 'block';
-            else el.style.display = 'none';
         }
 
         // ---- AI АНАЛИЗ (с поддержкой CORS-прокси) ----
@@ -126,9 +133,8 @@
             document.getElementById('signal_text').innerText = "АНАЛИЗ...";
             document.getElementById('ai_desc').innerText = "Запрос к DeepSeek...";
 
-            const lastData = historyData.slice(-25); // последние 25 свечей
+            const lastData = historyData.slice(-25);
             
-            // Тело запроса для OpenRouter
             const requestBody = {
                 model: "deepseek/deepseek-chat",
                 messages: [{
@@ -137,13 +143,13 @@
                 }]
             };
 
-            // Базовый URL OpenRouter API
             let apiUrl = "https://openrouter.ai/api/v1/chat/completions";
             
-            // Если включён CORS-прокси, оборачиваем URL
             if (useProxy) {
-                // Публичный прокси (только для тестирования!)
-                apiUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+                // Пробуем другой прокси, который может работать с POST (но не гарантируется)
+                apiUrl = `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(apiUrl)}`;
+                // Если и этот не работает, можно вернуть corsproxy.io, но он часто не принимает preflight
+                // apiUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
             }
 
             try {
@@ -171,7 +177,6 @@
                 const stext = document.getElementById('signal_text');
                 const descEl = document.getElementById('ai_desc');
 
-                // Определяем сигнал по наличию ключевых слов
                 ui.className = "signal-display";
                 const upperAns = answer.toUpperCase();
                 if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) {
