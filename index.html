@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Si-3.26 Аналитик | Исправленная версия</title>
-    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --accent: #8957e5; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
@@ -16,15 +16,17 @@
         .hold { border-color: #8b949e; color: #8b949e; }
         input, textarea { width: 100%; padding: 10px; background: #0d1117; color: white; border: 1px solid var(--border); border-radius: 6px; margin-top: 5px; box-sizing: border-box; }
         button { background: var(--accent); color: white; border: none; padding: 14px; cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold; margin-top: 10px; }
+        button.small { background: #21262d; padding: 8px; font-size: 12px; }
+        .info { font-size: 12px; color: #8b949e; margin-top: 10px; word-break: break-word; }
+        .warning { color: #f85149; font-size: 11px; }
     </style>
 </head>
 <body>
-
-    <h2 style="text-align: center;">Анализ Si-3.26 (H6)</h2>
+    <h2 style="text-align: center;">Анализ Si-3.26 (H6) / фьючерс SiH6</h2>
 
     <div class="grid">
         <div class="card" id="chart">
-            <div id="loading" style="position:absolute; top:45%; left:35%;">Загрузка данных MOEX...</div>
+            <div id="loading" style="position:absolute; top:45%; left:35%; background: #161b22; padding: 10px;">Загрузка данных MOEX...</div>
         </div>
 
         <div class="side">
@@ -33,15 +35,19 @@
                     <div style="font-size: 11px; opacity: 0.7;">DEEPSEEK V3 SIGNAL</div>
                     <div id="signal_text" style="font-size: 26px; font-weight: bold;">ОЖИДАНИЕ</div>
                 </div>
-                <div id="ai_desc" style="font-size: 13px; color: #8b949e;">Нажмите для AI анализа (нужен прокси или плагин CORS)</div>
+                <div id="ai_desc" class="info">Нажмите кнопку для AI‑анализа</div>
                 <button onclick="analyzeWithAI()">ЗАПУСТИТЬ AI АНАЛИЗ</button>
+                <button class="small" onclick="toggleProxy()" id="proxyBtn">🔁 CORS-прокси: ВЫКЛ</button>
             </div>
 
             <div class="card" style="margin-top: 20px;">
-                <label>OpenRouter API Key:</label>
-                <input type="password" id="api_key_input" placeholder="sk-or-v1-...">
-                <button style="background: #21262d;" onclick="saveConfig()">Сохранить настройки</button>
-                <p style="font-size: 10px; color: #f85149; margin-top: 10px;">Примечание: Если AI выдает ошибку CORS, используйте расширение "Allow CORS" в Chrome.</p>
+                <label>🔑 OpenRouter API Key:</label>
+                <input type="password" id="api_key_input" placeholder="sk-or-v1-..." value="">
+                <button style="background: #21262d;" onclick="saveConfig()">Сохранить ключ</button>
+                <p class="warning">
+                    ⚠️ Если AI выдаёт ошибку CORS, включите CORS-прокси кнопкой выше или установите расширение браузера "Allow CORS".<br>
+                    Прокси работает через https://corsproxy.io/? , не используйте для конфиденциальных данных.
+                </p>
             </div>
         </div>
     </div>
@@ -49,21 +55,28 @@
     <script>
         const TICKER = "SiH6";
         let historyData = [];
+        let useProxy = false; // переключатель для CORS-прокси
 
-        // 1. ЗАГРУЗКА ДАННЫХ MOEX (Исправлен URL и парсинг)
+        // ---- ЗАГРУЗКА ДАННЫХ С MOEX (исправлено) ----
         async function fetchMoexData() {
-            // Исправлен URL: добавлен слэш перед {TICKER}
-            const url = `https://iss.moex.com{TICKER}/candles.json?interval=24&from=2025-11-01`;
+            showLoading(true);
+            // Правильный endpoint для свечей фьючерса на валюту
+            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=24&from=2025-11-01`;
+            
             try {
                 const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 
-                // У MOEX данные лежат в data.candles.data
-                // Формат: [open, close, high, low, value, volume, begin, end]
-                const raw = data.candles.data;
+                // MOEX возвращает свечи в data.candles.data
+                if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
+                    throw new Error("Нет данных за указанный период. Возможно, контракт ещё не торговался.");
+                }
                 
+                const raw = data.candles.data;
+                // Формат строки: [open, close, high, low, value, volume, begin, end]
                 historyData = raw.map(c => ({
-                    time: c[6].split(' ')[0], // Извлекаем только дату YYYY-MM-DD из столбца 'begin'
+                    time: c[6].split('T')[0], // begin в формате ISO, берём только дату
                     open: c[0],
                     high: c[2],
                     low: c[3],
@@ -73,7 +86,7 @@
                 renderChart(historyData);
                 document.getElementById('loading').style.display = 'none';
             } catch (err) {
-                document.getElementById('loading').innerText = "Ошибка сети или API MOEX";
+                document.getElementById('loading').innerHTML = `❌ Ошибка MOEX: ${err.message}`;
                 console.error("MOEX Error:", err);
             }
         }
@@ -82,68 +95,123 @@
             const chart = LightweightCharts.createChart(document.getElementById('chart'), {
                 layout: { background: { color: '#161b22' }, textColor: '#d1d4dc' },
                 grid: { vertLines: { color: '#30363d' }, horzLines: { color: '#30363d' } },
+                timeScale: { timeVisible: false, borderColor: '#30363d' },
             });
-            const series = chart.addCandlestickSeries({ upColor: '#238636', downColor: '#f85149' });
+            const series = chart.addCandlestickSeries({ 
+                upColor: '#238636', downColor: '#f85149', 
+                borderVisible: false, wickVisible: true 
+            });
             series.setData(data);
             chart.timeScale().fitContent();
         }
 
-        // 2. AI АНАЛИЗ (Добавлена обработка CORS)
+        function showLoading(show) {
+            const el = document.getElementById('loading');
+            if (show) el.style.display = 'block';
+            else el.style.display = 'none';
+        }
+
+        // ---- AI АНАЛИЗ (с поддержкой CORS-прокси) ----
         async function analyzeWithAI() {
-            const apiKey = document.getElementById('api_key_input').value;
-            if (!apiKey) return alert("Введите API Ключ");
+            const apiKey = document.getElementById('api_key_input').value.trim();
+            if (!apiKey) {
+                alert("Введите API-ключ OpenRouter");
+                return;
+            }
+            if (historyData.length === 0) {
+                alert("Сначала дождитесь загрузки данных");
+                return;
+            }
 
             document.getElementById('signal_text').innerText = "АНАЛИЗ...";
+            document.getElementById('ai_desc').innerText = "Запрос к DeepSeek...";
+
+            const lastData = historyData.slice(-25); // последние 25 свечей
             
-            const lastData = historyData.slice(-25);
+            // Тело запроса для OpenRouter
+            const requestBody = {
+                model: "deepseek/deepseek-chat",
+                messages: [{
+                    role: "user",
+                    content: `Инструмент ${TICKER} (фьючерс на доллар/рубль). Данные свечей (дата, open, high, low, close) за последние дни: ${JSON.stringify(lastData)}. Дай чёткий торговый сигнал: только одно слово — ПОКУПКА, ПРОДАЖА или ДЕРЖАТЬ. Фильтруй боковой шум. После сигнала кратко поясни (одно предложение).`
+                }]
+            };
+
+            // Базовый URL OpenRouter API
+            let apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+            
+            // Если включён CORS-прокси, оборачиваем URL
+            if (useProxy) {
+                // Публичный прокси (только для тестирования!)
+                apiUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+            }
 
             try {
-                const response = await fetch("https://openrouter.ai", {
+                const response = await fetch(apiUrl, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${apiKey}`,
                         "Content-Type": "application/json",
-                        "HTTP-Referer": window.location.href, // Обязательно для OpenRouter
+                        "HTTP-Referer": window.location.href,
                         "X-Title": "Si Analyzer"
                     },
-                    body: JSON.stringify({
-                        "model": "deepseek/deepseek-chat",
-                        "messages": [{
-                            "role": "user", 
-                            "content": `Инструмент SiH6. Данные: ${JSON.stringify(lastData)}. Дай сигнал: ПОКУПКА, ПРОДАЖА или ДЕРЖАТЬ. Фильтруй боковой шум.`
-                        }]
-                    })
+                    body: JSON.stringify(requestBody)
                 });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errText.slice(0, 100)}`);
+                }
 
                 const aiRes = await response.json();
                 if (aiRes.error) throw new Error(aiRes.error.message);
-                
+
                 const answer = aiRes.choices[0].message.content;
                 const ui = document.getElementById('signal_ui');
                 const stext = document.getElementById('signal_text');
+                const descEl = document.getElementById('ai_desc');
 
+                // Определяем сигнал по наличию ключевых слов
                 ui.className = "signal-display";
-                if (answer.toUpperCase().includes("ПОКУПКА")) { ui.classList.add("buy"); stext.innerText = "ПОКУПКА"; }
-                else if (answer.toUpperCase().includes("ПРОДАЖА")) { ui.classList.add("sell"); stext.innerText = "ПРОДАЖА"; }
-                else { ui.classList.add("hold"); stext.innerText = "ДЕРЖАТЬ"; }
+                const upperAns = answer.toUpperCase();
+                if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) {
+                    ui.classList.add("buy");
+                    stext.innerText = "ПОКУПКА";
+                } else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) {
+                    ui.classList.add("sell");
+                    stext.innerText = "ПРОДАЖА";
+                } else {
+                    ui.classList.add("hold");
+                    stext.innerText = "ДЕРЖАТЬ";
+                }
 
-                document.getElementById('ai_desc').innerText = answer.substring(0, 200) + "...";
-
+                descEl.innerText = answer.substring(0, 300) + (answer.length > 300 ? "…" : "");
             } catch (e) {
-                alert("Ошибка CORS или API. Если вы на GitHub, установите расширение 'Allow CORS' в браузере или используйте прокси.");
+                alert("Ошибка при обращении к AI: " + e.message);
                 document.getElementById('signal_text').innerText = "ОШИБКА";
+                document.getElementById('ai_desc').innerText = "Проверьте ключ, CORS-прокси или консоль браузера.";
                 console.error("AI Error:", e);
             }
         }
 
+        // ---- НАСТРОЙКИ ----
         function saveConfig() {
-            localStorage.setItem('si_key', document.getElementById('api_key_input').value);
-            alert("Ключ сохранен локально");
+            const key = document.getElementById('api_key_input').value.trim();
+            if (key) localStorage.setItem('si_key', key);
+            else localStorage.removeItem('si_key');
+            alert("Ключ сохранён в localStorage");
         }
 
+        function toggleProxy() {
+            useProxy = !useProxy;
+            document.getElementById('proxyBtn').innerText = useProxy ? "🔁 CORS-прокси: ВКЛ" : "🔁 CORS-прокси: ВЫКЛ";
+        }
+
+        // Инициализация
         window.onload = () => {
+            const savedKey = localStorage.getItem('si_key');
+            if (savedKey) document.getElementById('api_key_input').value = savedKey;
             fetchMoexData();
-            document.getElementById('api_key_input').value = localStorage.getItem('si_key') || "";
         };
     </script>
 </body>
