@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Si-3.26 Аналитик | M5, M15, 1H, 4H, 1D, 1W</title>
+    <title>Si-3.26 Аналитик | Все таймфреймы за 365 дней</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
@@ -378,20 +378,20 @@
         let countdownSeconds = 300;
         let currentChart = null;
 
-        // Соответствие таймфреймов интервалам MOEX и кол-ву дней для запроса (чтобы получить ~300-500 свечей)
-        const tfConfig = {
-            5:   { interval: 5,  days: 3 },    // M5: 3 дня = 864 свечи (но MOEX может отдать меньше, норм)
-            15:  { interval: 15, days: 7 },    // M15: 7 дней = 672 свечи
-            60:  { interval: 60, days: 30 },   // 1H: 30 дней = 720 свечей
-            240: { interval: 4,  days: 60 },   // 4H: 60 дней = 360 свечей (интервал 4 часа в MOEX = 240 минут)
-            1440: { interval: 24, days: 200 }, // 1D: 200 дней = 200 свечей
-            10080:{ interval: 7,  days: 800 }  // 1W: 800 дней ≈ 114 недель (но MOEX может отдать меньше)
+        // Соответствие таймфрейма интервалам MOEX
+        const tfMap = {
+            5: 5,
+            15: 15,
+            60: 60,
+            240: 4,      // 4 часа в MOEX обозначается интервалом 4
+            1440: 24,    // 1 день = 24
+            10080: 7     // 1 неделя = 7 (дней)
         };
 
-        // Функция получения даты "from" в формате YYYY-MM-DD
-        function getFromDate(daysAgo) {
+        // Функция получения даты "from" (365 дней назад)
+        function getFromDate() {
             const date = new Date();
-            date.setDate(date.getDate() - daysAgo);
+            date.setDate(date.getDate() - 365);
             return date.toISOString().split('T')[0];
         }
 
@@ -400,14 +400,13 @@
             loadingEl.style.display = 'block';
             loadingEl.innerText = 'Загрузка данных MOEX...';
 
-            const config = tfConfig[timeframe];
-            if (!config) {
+            const interval = tfMap[timeframe];
+            if (!interval) {
                 loadingEl.innerText = '❌ Неподдерживаемый таймфрейм';
                 return;
             }
 
-            const interval = config.interval;
-            const fromDate = getFromDate(config.days);
+            const fromDate = getFromDate(); // всегда 365 дней назад
 
             const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=${interval}&from=${fromDate}`;
             
@@ -417,15 +416,14 @@
                 const data = await response.json();
                 
                 if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
-                    throw new Error(`Нет данных за период с ${fromDate}. Попробуйте увеличить days в конфиге.`);
+                    throw new Error(`Нет данных за период с ${fromDate}. Возможно, инструмент не торговался.`);
                 }
                 
                 const raw = data.candles.data;
                 // Формат: [open, close, high, low, ..., begin]
                 historyData = raw.map(c => {
-                    // begin приходит в формате "YYYY-MM-DD HH:MM:SS"
-                    const dateStr = c[6]; // например "2025-11-01 14:00:00"
-                    // Преобразуем в метку времени (секунды) для корректного отображения на графике
+                    const dateStr = c[6]; // "YYYY-MM-DD HH:MM:SS"
+                    // Преобразуем в метку времени (секунды)
                     const timestamp = Math.floor(new Date(dateStr).getTime() / 1000);
                     return {
                         time: timestamp,
@@ -473,7 +471,7 @@
                 },
                 timeScale: { 
                     borderColor: '#30363d',
-                    timeVisible: true, // для внутридневных графиков показываем время
+                    timeVisible: true,
                     secondsVisible: false,
                 },
                 crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
