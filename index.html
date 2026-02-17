@@ -2,71 +2,303 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Si-3.26 Аналитик | Финальная версия</title>
-    <!-- Подключаем конкретную версию lightweight-charts (4.0.1) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Si-3.26 Аналитик | Мультитаймфрейм</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --accent: #8957e5; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
-        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-        #chart { height: 500px; width: 100%; position: relative; }
-        .signal-display { text-align: center; padding: 15px; border-radius: 10px; border: 2px solid var(--border); margin-bottom: 15px; }
-        .buy { border-color: #238636; color: #3fb950; background: rgba(35, 134, 54, 0.1); }
-        .sell { border-color: #f85149; color: #f85149; background: rgba(248, 81, 73, 0.1); }
-        .hold { border-color: #8b949e; color: #8b949e; }
-        input, textarea { width: 100%; padding: 10px; background: #0d1117; color: white; border: 1px solid var(--border); border-radius: 6px; margin-top: 5px; box-sizing: border-box; }
-        button { background: var(--accent); color: white; border: none; padding: 14px; cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold; margin-top: 10px; }
-        button.small { background: #21262d; padding: 8px; font-size: 12px; }
-        .info { font-size: 12px; color: #8b949e; margin-top: 10px; word-break: break-word; }
-        .warning { color: #f85149; font-size: 11px; }
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --accent: #8957e5;
+            --buy: #238636;
+            --sell: #f85149;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 16px;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        h2 {
+            text-align: center;
+            font-size: clamp(1.2rem, 5vw, 1.8rem);
+            margin: 0 0 16px 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        #chart {
+            height: 500px;
+            width: 100%;
+            position: relative;
+        }
+
+        .timeframe-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .tf-btn {
+            background: #21262d;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: 60px;
+        }
+
+        .tf-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .signal-display {
+            text-align: center;
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            margin-bottom: 15px;
+            transition: all 0.2s;
+        }
+
+        .buy {
+            border-color: var(--buy);
+            color: #3fb950;
+            background: rgba(35, 134, 54, 0.15);
+        }
+
+        .sell {
+            border-color: var(--sell);
+            color: var(--sell);
+            background: rgba(248, 81, 73, 0.15);
+        }
+
+        .hold {
+            border-color: #8b949e;
+            color: #8b949e;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            background: #0d1117;
+            color: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-top: 8px;
+            font-size: 16px;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            width: 100%;
+            font-weight: 600;
+            font-size: 16px;
+            margin-top: 12px;
+            transition: opacity 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        button.small {
+            background: #21262d;
+            padding: 10px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .info {
+            font-size: 13px;
+            color: #8b949e;
+            margin: 12px 0 0;
+            word-break: break-word;
+            line-height: 1.5;
+        }
+
+        .warning {
+            color: #f85149;
+            font-size: 12px;
+            margin: 12px 0 0;
+            line-height: 1.5;
+        }
+
+        .warning a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+
+        #loading {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--card);
+            padding: 12px 24px;
+            border-radius: 40px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px black;
+            white-space: nowrap;
+        }
+
+        .explain-card {
+            margin-top: 20px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .explain-title {
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .explain-text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #8b949e;
+        }
+
+        .explain-text strong {
+            color: var(--text);
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .grid { grid-template-columns: 1fr; gap: 16px; }
+            #chart { height: 380px; }
+            .tf-btn { padding: 10px 12px; font-size: 13px; }
+            #signal_text { font-size: 22px !important; }
+            button { padding: 16px; font-size: 18px; }
+            input { font-size: 18px; padding: 14px; }
+        }
+
+        @media (max-width: 480px) {
+            #chart { height: 300px; }
+            h2 { font-size: 1.3rem; }
+        }
+
+        @media (min-width: 1600px) {
+            .grid { max-width: 1600px; }
+            #chart { height: 600px; }
+        }
     </style>
 </head>
 <body>
-    <h2 style="text-align: center;">Анализ Si-3.26 (H6) / фьючерс SiH6</h2>
+    <h2>Анализ Si-3.26 (H6) / фьючерс SiH6</h2>
 
     <div class="grid">
         <div class="card" id="chart">
-            <div id="loading" style="position:absolute; top:45%; left:35%; background: #161b22; padding: 10px; border-radius: 8px;">Загрузка данных MOEX...</div>
+            <div class="timeframe-selector">
+                <button class="tf-btn active" data-tf="60">1ч</button>
+                <button class="tf-btn" data-tf="240">4ч</button>
+                <button class="tf-btn" data-tf="1440">1д</button>
+                <button class="tf-btn" data-tf="10080">1н</button>
+            </div>
+            <div id="loading">Загрузка данных MOEX...</div>
         </div>
 
         <div class="side">
             <div class="card">
                 <div id="signal_ui" class="signal-display hold">
-                    <div style="font-size: 11px; opacity: 0.7;">DEEPSEEK V3 SIGNAL</div>
+                    <div style="font-size: 12px; opacity: 0.7;">DEEPSEEK V3 SIGNAL</div>
                     <div id="signal_text" style="font-size: 26px; font-weight: bold;">ОЖИДАНИЕ</div>
                 </div>
                 <div id="ai_desc" class="info">Нажмите кнопку для AI‑анализа</div>
                 <button onclick="analyzeWithAI()">ЗАПУСТИТЬ AI АНАЛИЗ</button>
                 <button class="small" onclick="toggleProxy()" id="proxyBtn">🔁 CORS-прокси: ВЫКЛ</button>
                 <p class="warning">
-                    ⚠️ Если AI выдаёт ошибку CORS, <strong>установите расширение для браузера</strong> (например, 
-                    <a href="https://chrome.google.com/webstore/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigbkjea" target="_blank" style="color:#58a6ff;">Allow CORS</a>) 
-                    или включите прокси-кнопкой выше (может не работать с POST-запросами).
+                    ⚠️ Если AI выдаёт ошибку CORS, установите расширение 
+                    <a href="https://chrome.google.com/webstore/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigbkjea" target="_blank" rel="noopener">Allow CORS</a>
                 </p>
             </div>
 
             <div class="card" style="margin-top: 20px;">
-                <label>🔑 OpenRouter API Key:</label>
+                <label style="font-weight: 500;">🔑 OpenRouter API Key:</label>
                 <input type="password" id="api_key_input" placeholder="sk-or-v1-..." value="">
                 <button style="background: #21262d;" onclick="saveConfig()">Сохранить ключ</button>
             </div>
         </div>
     </div>
 
+    <!-- Блок с объяснением анализа DeepSeek -->
+    <div class="explain-card">
+        <div class="explain-title">🔍 Как DeepSeek анализирует график</div>
+        <div class="explain-text" id="explainText">
+            <strong>Технические индикаторы:</strong> RSI (14), MACD, скользящие средние (EMA20/50/200), уровни поддержки/сопротивления, анализ объёмов.<br>
+            <strong>Таймфреймы:</strong> 1ч — для входа, 4ч — структура тренда, 1д — глобальный тренд, 1н — долгосрочная перспектива.<br>
+            <strong>Подход:</strong> DeepSeek получает свечные данные, рассчитывает индикаторы и выдаёт сигнал на основе многофакторного анализа [citation:1][citation:2].
+        </div>
+    </div>
+
     <script>
         const TICKER = "SiH6";
         let historyData = [];
+        let currentTf = 60; // текущий таймфрейм в минутах
         let useProxy = false;
 
-        // ---- ЗАГРУЗКА ДАННЫХ С MOEX ----
-        async function fetchMoexData() {
+        // Соответствие таймфреймов интервалам MOEX
+        const tfMap = {
+            60: 60,     // 1 час
+            240: 4,     // 4 часа (в MOEX это 4H)
+            1440: 24,   // 1 день
+            10080: 7    // 1 неделя (в MOEX это 7 дней)
+        };
+
+        // Загрузка данных с выбранным таймфреймом
+        async function fetchMoexData(timeframe = 60) {
             const loadingEl = document.getElementById('loading');
             loadingEl.style.display = 'block';
             loadingEl.innerText = 'Загрузка данных MOEX...';
 
-            // Используем правильный endpoint для фьючерса на валюту
-            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=24&from=2025-10-01`; // более ранняя дата
+            const interval = tfMap[timeframe] || 24;
+            // Для разных интервалов нужна разная глубина истории
+            let fromDate = '2025-10-01';
+            if (timeframe === 10080) fromDate = '2025-07-01'; // для недель берём больше истории
+
+            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=${interval}&from=${fromDate}`;
             
             try {
                 const response = await fetch(url);
@@ -74,12 +306,12 @@
                 const data = await response.json();
                 
                 if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
-                    throw new Error("Нет данных за указанный период. Попробуйте изменить дату.");
+                    throw new Error("Нет данных за период. Попробуйте изменить дату.");
                 }
                 
                 const raw = data.candles.data;
                 historyData = raw.map(c => ({
-                    time: c[6].split('T')[0], // дата из begin
+                    time: c[6].split('T')[0],
                     open: c[0],
                     high: c[2],
                     low: c[3],
@@ -88,28 +320,34 @@
 
                 renderChart(historyData);
                 loadingEl.style.display = 'none';
+                
+                // Обновляем описание таймфрейма
+                updateTimeframeDescription(timeframe);
+                
             } catch (err) {
-                loadingEl.innerHTML = `❌ Ошибка MOEX: ${err.message}<br>Проверьте консоль (F12) для деталей.`;
+                loadingEl.innerHTML = `❌ Ошибка MOEX: ${err.message}<br>Проверьте консоль (F12).`;
                 console.error("MOEX Error:", err);
             }
         }
 
         function renderChart(data) {
-            // Проверяем, что библиотека загружена
             if (typeof LightweightCharts === 'undefined') {
-                document.getElementById('loading').innerHTML = '❌ Библиотека графиков не загрузилась. Обновите страницу.';
+                document.getElementById('loading').innerHTML = '❌ Библиотека графиков не загрузилась. Обновите.';
                 return;
             }
-            const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+            
+            // Очищаем предыдущий график
+            const chartContainer = document.getElementById('chart');
+            const oldCanvas = chartContainer.querySelector('canvas');
+            if (oldCanvas) oldCanvas.remove();
+            
+            const chart = LightweightCharts.createChart(chartContainer, {
                 layout: { background: { color: '#161b22' }, textColor: '#d1d4dc' },
                 grid: { vertLines: { color: '#30363d' }, horzLines: { color: '#30363d' } },
                 timeScale: { borderColor: '#30363d' },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
             });
-            // Убедимся, что метод существует
-            if (typeof chart.addCandlestickSeries !== 'function') {
-                document.getElementById('loading').innerHTML = '❌ Метод addCandlestickSeries не найден. Версия библиотеки устарела.';
-                return;
-            }
+            
             const series = chart.addCandlestickSeries({ 
                 upColor: '#238636', downColor: '#f85149', 
                 borderVisible: false, wickVisible: true 
@@ -118,7 +356,50 @@
             chart.timeScale().fitContent();
         }
 
-        // ---- AI АНАЛИЗ (с поддержкой CORS-прокси) ----
+        // Обновление текста объяснения в зависимости от таймфрейма
+        function updateTimeframeDescription(tf) {
+            const explainEl = document.getElementById('explainText');
+            let analysisType = '';
+            
+            switch(tf) {
+                case 60:
+                    analysisType = '🔹 <strong>1-часовой таймфрейм</strong> — анализ краткосрочных движений, поиск точек входа, RSI и MACD для точного входа.';
+                    break;
+                case 240:
+                    analysisType = '🔸 <strong>4-часовой таймфрейм</strong> — определение структуры рынка, уровни поддержки/сопротивления, среднесрочный тренд.';
+                    break;
+                case 1440:
+                    analysisType = '📊 <strong>Дневной таймфрейм</strong> — глобальный тренд, ключевые уровни, EMA50/200, фундаментальные изменения.';
+                    break;
+                case 10080:
+                    analysisType = '📈 <strong>Недельный таймфрейм</strong> — долгосрочная перспектива, макротренды, стратегические уровни.';
+                    break;
+            }
+            
+            explainEl.innerHTML = `
+                <strong>Технические индикаторы:</strong> RSI (14), MACD, скользящие средние (EMA20/50/200), уровни поддержки/сопротивления, анализ объёмов.<br>
+                ${analysisType}<br>
+                <strong>Подход:</strong> DeepSeek получает свечные данные, рассчитывает индикаторы и выдаёт сигнал на основе многофакторного анализа [citation:1][citation:2].
+            `;
+        }
+
+        // Переключение таймфрейма
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('tf-btn')) {
+                // Обновляем активную кнопку
+                document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // Получаем новый таймфрейм
+                const newTf = parseInt(e.target.dataset.tf);
+                currentTf = newTf;
+                
+                // Загружаем данные
+                fetchMoexData(newTf);
+            }
+        });
+
+        // AI анализ с учётом текущего таймфрейма
         async function analyzeWithAI() {
             const apiKey = document.getElementById('api_key_input').value.trim();
             if (!apiKey) {
@@ -133,23 +414,34 @@
             document.getElementById('signal_text').innerText = "АНАЛИЗ...";
             document.getElementById('ai_desc').innerText = "Запрос к DeepSeek...";
 
-            const lastData = historyData.slice(-25);
+            const lastData = historyData.slice(-30); // больше данных для анализа
+            
+            // Определяем название таймфрейма для промпта
+            let tfName = '1 час';
+            if (currentTf === 240) tfName = '4 часа';
+            else if (currentTf === 1440) tfName = '1 день';
+            else if (currentTf === 10080) tfName = '1 неделя';
             
             const requestBody = {
                 model: "deepseek/deepseek-chat",
                 messages: [{
                     role: "user",
-                    content: `Инструмент ${TICKER} (фьючерс на доллар/рубль). Данные свечей (дата, open, high, low, close) за последние дни: ${JSON.stringify(lastData)}. Дай чёткий торговый сигнал: только одно слово — ПОКУПКА, ПРОДАЖА или ДЕРЖАТЬ. Фильтруй боковой шум. После сигнала кратко поясни (одно предложение).`
+                    content: `Инструмент ${TICKER} (фьючерс на доллар/рубль). Таймфрейм: ${tfName}. Данные свечей (дата, open, high, low, close) за последние дни: ${JSON.stringify(lastData)}. 
+                    
+Проанализируй технические индикаторы:
+1. RSI (14) — перекупленность/перепроданность
+2. MACD — направление и сила тренда
+3. Скользящие средние (EMA20, EMA50) — положение цены относительно них
+4. Уровни поддержки/сопротивления по последним экстремумам
+
+Дай чёткий торговый сигнал: только одно слово — ПОКУПКА, ПРОДАЖА или ДЕРЖАТЬ. Фильтруй боковой шум. После сигнала кратко поясни (одно предложение), на основе каких индикаторов сделан вывод.`
                 }]
             };
 
             let apiUrl = "https://openrouter.ai/api/v1/chat/completions";
             
             if (useProxy) {
-                // Пробуем другой прокси, который может работать с POST (но не гарантируется)
                 apiUrl = `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(apiUrl)}`;
-                // Если и этот не работает, можно вернуть corsproxy.io, но он часто не принимает preflight
-                // apiUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
             }
 
             try {
@@ -199,7 +491,6 @@
             }
         }
 
-        // ---- НАСТРОЙКИ ----
         function saveConfig() {
             const key = document.getElementById('api_key_input').value.trim();
             if (key) localStorage.setItem('si_key', key);
@@ -212,11 +503,10 @@
             document.getElementById('proxyBtn').innerText = useProxy ? "🔁 CORS-прокси: ВКЛ" : "🔁 CORS-прокси: ВЫКЛ";
         }
 
-        // Инициализация
         window.onload = () => {
             const savedKey = localStorage.getItem('si_key');
             if (savedKey) document.getElementById('api_key_input').value = savedKey;
-            fetchMoexData();
+            fetchMoexData(60); // по умолчанию 1 час
         };
     </script>
 </body>
