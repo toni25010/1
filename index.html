@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Si-3.26 Аналитик | Реальное время + Новости</title>
+    <title>Si-3.26 Аналитик | Сигналы + Уведомления</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
@@ -77,8 +77,6 @@
             justify-content: flex-start;
             border-bottom: 1px solid var(--border);
             padding-bottom: 12px;
-            position: relative;
-            z-index: 10;
         }
 
         .tf-btn {
@@ -93,9 +91,6 @@
             transition: all 0.2s;
             opacity: 0.7;
             white-space: nowrap;
-            position: relative;
-            z-index: 11;
-            pointer-events: auto;
             min-width: 50px;
             text-align: center;
         }
@@ -114,7 +109,194 @@
             border-color: var(--accent);
         }
 
-        /* Новости */
+        /* Уведомления */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        }
+
+        .notification {
+            background: var(--card);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            animation: slideIn 0.3s ease, pulse 2s infinite;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .notification:hover {
+            transform: translateX(-5px);
+        }
+
+        .notification.buy {
+            border-color: var(--buy);
+            background: rgba(35, 134, 54, 0.15);
+        }
+
+        .notification.sell {
+            border-color: var(--sell);
+            background: rgba(248, 81, 73, 0.15);
+        }
+
+        .notification-icon {
+            font-size: 32px;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .notification-text {
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.7;
+        }
+
+        .notification-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+            50% { box-shadow: 0 8px 32px rgba(137, 87, 229, 0.3); }
+        }
+
+        /* История сигналов */
+        .signal-history {
+            margin-top: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .signal-history-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .signal-history-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: #0d1117;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            border-left: 3px solid transparent;
+        }
+
+        .signal-history-item.buy { border-left-color: var(--buy); }
+        .signal-history-item.sell { border-left-color: var(--sell); }
+        .signal-history-item.hold { border-left-color: #8b949e; }
+
+        .signal-history-time {
+            color: #8b949e;
+            min-width: 60px;
+        }
+
+        .signal-history-signal {
+            font-weight: 600;
+            min-width: 80px;
+        }
+
+        .signal-history-price {
+            color: #8b949e;
+        }
+
+        /* Настройки уведомлений */
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .settings-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #21262d;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: var(--accent);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(20px);
+        }
+
+        /* Остальные стили */
         .news-container {
             margin-top: 16px;
             max-height: 300px;
@@ -155,12 +337,10 @@
             margin-bottom: 8px;
             transition: all 0.2s;
             cursor: pointer;
-            position: relative;
         }
 
         .news-item:hover {
             border-color: var(--accent);
-            transform: translateX(4px);
         }
 
         .news-item.high { border-left: 3px solid var(--news-high); }
@@ -171,9 +351,6 @@
             font-size: 11px;
             color: #8b949e;
             margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         .news-source {
@@ -181,16 +358,12 @@
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 10px;
+            margin-left: 6px;
         }
 
         .news-text {
             font-size: 13px;
             line-height: 1.5;
-            color: var(--text);
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
         }
 
         .news-impact {
@@ -220,7 +393,6 @@
             border-radius: 20px;
             font-size: 12px;
             cursor: pointer;
-            transition: all 0.2s;
         }
 
         .filter-btn.active {
@@ -229,7 +401,6 @@
             color: white;
         }
 
-        /* Индикатор влияния новостей */
         .news-influence-indicator {
             display: flex;
             align-items: center;
@@ -247,7 +418,6 @@
             background: #21262d;
             border-radius: 3px;
             overflow: hidden;
-            position: relative;
         }
 
         .influence-fill {
@@ -259,12 +429,6 @@
         .influence-fill.bullish { background: var(--buy); }
         .influence-fill.bearish { background: var(--sell); }
         .influence-fill.neutral { background: #8b949e; }
-
-        .influence-label {
-            font-size: 12px;
-            font-weight: 600;
-            min-width: 60px;
-        }
 
         .signal-display {
             text-align: center;
@@ -349,9 +513,6 @@
             font-size: 16px;
             margin-top: 10px;
             transition: opacity 0.2s;
-            -webkit-tap-highlight-color: transparent;
-            position: relative;
-            z-index: 5;
         }
 
         button:active {
@@ -385,11 +546,6 @@
             font-size: 12px;
             margin: 10px 0 0;
             line-height: 1.5;
-        }
-
-        .warning a {
-            color: #58a6ff;
-            text-decoration: none;
         }
 
         #loading {
@@ -450,71 +606,6 @@
         .positive { color: #3fb950; }
         .negative { color: #f85149; }
 
-        .explain-card {
-            margin-top: 16px;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 16px;
-            width: 100%;
-            max-width: 1400px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .explain-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-            padding: 4px 0;
-        }
-
-        .explain-title {
-            color: var(--accent);
-            font-weight: 600;
-            font-size: 16px;
-        }
-
-        .explain-toggle {
-            background: none;
-            border: none;
-            color: var(--text);
-            font-size: 20px;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            margin: 0;
-            background: #21262d;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .explain-toggle:hover {
-            transform: scale(1.1);
-        }
-
-        .explain-content {
-            margin-top: 16px;
-            font-size: 14px;
-            line-height: 1.6;
-            color: #8b949e;
-            transition: all 0.3s;
-        }
-
-        .explain-content.collapsed {
-            display: none;
-        }
-
-        .explain-content strong {
-            color: var(--text);
-        }
-
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -542,43 +633,29 @@
             font-size: 13px;
         }
 
-        .loading-news {
-            text-align: center;
-            padding: 20px;
-            color: #8b949e;
-            font-size: 13px;
-        }
-
-        .error-news {
-            text-align: center;
-            padding: 20px;
-            color: #f85149;
-            font-size: 13px;
-        }
-
         @media (max-width: 900px) {
             .grid { grid-template-columns: 1fr; }
             #chart { height: 400px; }
-            .timeframe-selector { gap: 6px; }
-            .tf-btn { padding: 6px 12px; font-size: 13px; }
+            .notification-container {
+                left: 10px;
+                right: 10px;
+                max-width: none;
+            }
         }
 
         @media (max-width: 600px) {
             body { padding: 8px; }
-            .card { padding: 12px; border-radius: 16px; }
-            .tf-btn { padding: 6px 10px; font-size: 12px; min-width: 40px; }
+            .card { padding: 12px; }
+            .tf-btn { padding: 6px 10px; font-size: 12px; }
             #chart { height: 320px; }
-            #signal_text { font-size: 22px !important; }
-            button { padding: 14px 12px; font-size: 16px; }
-            .explain-card { padding: 12px; }
-            .price-ticker { flex-direction: column; gap: 8px; }
-            .ticker-value { font-size: 18px; }
-            .news-container { max-height: 250px; }
         }
     </style>
 </head>
 <body>
-    <h2>Анализ Si-3.26 (H6) | Теханализ + Новостной фон</h2>
+    <!-- Контейнер для уведомлений -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <h2>Анализ Si-3.26 (H6) | Сигналы + Уведомления</h2>
 
     <div class="grid">
         <div class="card" id="chartContainer">
@@ -595,7 +672,6 @@
             </div>
             <div class="last-update" id="lastUpdate">Последнее обновление: -</div>
 
-            <!-- Индикатор влияния новостей -->
             <div class="news-influence-indicator" id="newsInfluence" style="display: none;">
                 <span class="influence-label">📰 Влияние:</span>
                 <div class="influence-bar">
@@ -604,7 +680,6 @@
                 <span id="influenceText" style="font-size: 11px; color: #8b949e;">Нейтрально</span>
             </div>
 
-            <!-- Новости -->
             <div class="news-container" id="newsContainer">
                 <div class="news-header">
                     <div class="news-title">
@@ -638,28 +713,16 @@
                 </div>
 
                 <div id="signal_ui" class="signal-display hold">
-                    <div style="font-size: 11px; opacity: 0.7;">DEEPSEEK V3 | Теханализ + Новости</div>
+                    <div style="font-size: 11px; opacity: 0.7;">ТЕКУЩИЙ СИГНАЛ</div>
                     <div id="signal_text" style="font-size: 26px; font-weight: bold;">ОЖИДАНИЕ</div>
                 </div>
-                <div id="ai_desc" class="info">Нажмите кнопку для комплексного анализа</div>
+                <div id="ai_desc" class="info">Нажмите кнопку для анализа</div>
                 
                 <div class="stats-grid" id="statsGrid" style="display: none;">
-                    <div class="stat-item">
-                        <div class="stat-label">RSI (14)</div>
-                        <div class="stat-value" id="statRsi">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">MACD</div>
-                        <div class="stat-value" id="statMacd">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">EMA 20/50</div>
-                        <div class="stat-value" id="statEma">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Тренд</div>
-                        <div class="stat-value" id="statTrend">-</div>
-                    </div>
+                    <div class="stat-item"><div class="stat-label">RSI (14)</div><div class="stat-value" id="statRsi">-</div></div>
+                    <div class="stat-item"><div class="stat-label">MACD</div><div class="stat-value" id="statMacd">-</div></div>
+                    <div class="stat-item"><div class="stat-label">EMA 20/50</div><div class="stat-value" id="statEma">-</div></div>
+                    <div class="stat-item"><div class="stat-label">Тренд</div><div class="stat-value" id="statTrend">-</div></div>
                 </div>
 
                 <div class="auto-update-row">
@@ -669,11 +732,40 @@
                     <span class="timer" id="timerDisplay">00:30</span>
                 </div>
 
-                <button onclick="analyzeWithAI()" type="button">🚀 КОМПЛЕКСНЫЙ АНАЛИЗ</button>
+                <button onclick="analyzeWithAI()" type="button">🚀 АНАЛИЗ + СИГНАЛ</button>
                 <button class="small" onclick="toggleProxy()" id="proxyBtn" type="button">🔁 CORS-прокси: ВЫКЛ</button>
-                <p class="warning">
-                    ⚠️ AI анализирует технические индикаторы И новостной фон для точного сигнала
-                </p>
+            </div>
+
+            <!-- Настройки уведомлений -->
+            <div class="card" style="margin-top: 16px;">
+                <div style="font-weight: 600; margin-bottom: 12px; color: var(--accent);">🔔 Настройки сигналов</div>
+                
+                <div class="settings-row">
+                    <span class="settings-label">🔊 Звуковой сигнал</span>
+                    <div class="toggle-switch active" id="soundToggle" onclick="toggleSetting('sound')"></div>
+                </div>
+                
+                <div class="settings-row">
+                    <span class="settings-label">💬 Push-уведомления</span>
+                    <div class="toggle-switch" id="notificationToggle" onclick="toggleSetting('notification')"></div>
+                </div>
+                
+                <div class="settings-row" style="border-bottom: none;">
+                    <span class="settings-label">📱 Только важные (BUY/SELL)</span>
+                    <div class="toggle-switch active" id="importantOnlyToggle" onclick="toggleSetting('importantOnly')"></div>
+                </div>
+                
+                <button class="small" onclick="testSignal()" style="margin-top: 12px;">🧪 Тест сигнала</button>
+            </div>
+
+            <!-- История сигналов -->
+            <div class="card" style="margin-top: 16px;">
+                <div class="signal-history-title">📜 История сигналов</div>
+                <div class="signal-history" id="signalHistory">
+                    <div style="text-align: center; color: #8b949e; font-size: 12px; padding: 20px;">
+                        История пуста
+                    </div>
+                </div>
             </div>
 
             <div class="card" style="margin-top: 16px;">
@@ -684,23 +776,196 @@
         </div>
     </div>
 
-    <div class="explain-card">
-        <div class="explain-header" onclick="toggleExplain()">
-            <span class="explain-title">📘 Методология анализа</span>
-            <span class="explain-toggle" id="explainToggle">−</span>
-        </div>
-        <div class="explain-content" id="explainContent">
-            <strong>1. Технический анализ:</strong> RSI, MACD, EMA, уровни поддержки/сопротивления.<br>
-            <span id="tfDescription"></span><br>
-            <strong>2. Новостной анализ:</strong> 
-            - 🔴 Высокий импакт: ЦБ, санкции, геополитика (вес 40%)<br>
-            - 🟡 Средний импакт: нефть, макро (вес 25%)<br>
-            - 🔵 Низкий импакт: общие новости (вес 10%)<br><br>
-            <strong>3. Комплексная оценка:</strong> AI корректирует технический сигнал на основе новостного фона.
-        </div>
-    </div>
-
     <script>
+        // ============================================
+        // НАСТРОЙКИ УВЕДОМЛЕНИЙ
+        // ============================================
+        const settings = {
+            sound: true,
+            notification: false,
+            importantOnly: true
+        };
+
+        let lastSignal = null; // Последний сигнал для сравнения
+        let signalHistory = []; // История сигналов
+
+        // ============================================
+        // ЗВУКОВОЙ СИГНАЛ (Web Audio API)
+        // ============================================
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSignalSound(type) {
+            if (!settings.sound) return;
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            if (type === 'buy') {
+                // Восходящая мелодия для покупки
+                oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(554, audioContext.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } else if (type === 'sell') {
+                // Нисходящая мелодия для продажи
+                oscillator.frequency.setValueAtTime(659, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(554, audioContext.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(440, audioContext.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } else {
+                // Короткий сигнал для HOLD
+                oscillator.frequency.setValueAtTime(523, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+            }
+        }
+
+        // ============================================
+        // PUSH-УВЕДОМЛЕНИЯ
+        // ============================================
+        function showNotification(signal, price, reason) {
+            if (settings.importantOnly && signal === 'ДЕРЖАТЬ') return;
+
+            const container = document.getElementById('notificationContainer');
+            
+            const icons = {
+                'ПОКУПКА': '🚀',
+                'ПРОДАЖА': '🔻',
+                'ДЕРЖАТЬ': '⏸️'
+            };
+
+            const titles = {
+                'ПОКУПКА': 'Сигнал на ПОКУПКУ',
+                'ПРОДАЖА': 'Сигнал на ПРОДАЖУ',
+                'ДЕРЖАТЬ': 'Сигнал ДЕРЖАТЬ'
+            };
+
+            const notification = document.createElement('div');
+            notification.className = `notification ${signal === 'ПОКУПКА' ? 'buy' : signal === 'ПРОДАЖА' ? 'sell' : ''}`;
+            notification.innerHTML = `
+                <div class="notification-icon">${icons[signal]}</div>
+                <div class="notification-content">
+                    <div class="notification-title">${titles[signal]}</div>
+                    <div class="notification-text">Цена: ${price.toFixed(2)} | ${reason.substring(0, 50)}...</div>
+                </div>
+                <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+            `;
+
+            // Автоматическое удаление через 10 секунд
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.style.opacity = '0';
+                    notification.style.transform = 'translateX(100%)';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, 10000);
+
+            container.appendChild(notification);
+            playSignalSound(signal === 'ПОКУПКА' ? 'buy' : signal === 'ПРОДАЖА' ? 'sell' : 'hold');
+
+            // Добавляем в историю
+            addToSignalHistory(signal, price);
+        }
+
+        function addToSignalHistory(signal, price) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            
+            signalHistory.unshift({
+                time: timeStr,
+                signal: signal,
+                price: price,
+                timestamp: now.getTime()
+            });
+
+            // Оставляем только последние 20 сигналов
+            if (signalHistory.length > 20) {
+                signalHistory = signalHistory.slice(0, 20);
+            }
+
+            updateSignalHistoryUI();
+        }
+
+        function updateSignalHistoryUI() {
+            const container = document.getElementById('signalHistory');
+            
+            if (signalHistory.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #8b949e; font-size: 12px; padding: 20px;">История пуста</div>';
+                return;
+            }
+
+            container.innerHTML = signalHistory.map(item => `
+                <div class="signal-history-item ${item.signal === 'ПОКУПКА' ? 'buy' : item.signal === 'ПРОДАЖА' ? 'sell' : 'hold'}">
+                    <span class="signal-history-time">${item.time}</span>
+                    <span class="signal-history-signal">${item.signal}</span>
+                    <span class="signal-history-price">${item.price.toFixed(2)}</span>
+                </div>
+            `).join('');
+        }
+
+        // ============================================
+        // ОСНОВНАЯ ЛОГИКА СИГНАЛОВ
+        // ============================================
+        function processNewSignal(newSignal, price, reason) {
+            // Проверяем, изменился ли сигнал
+            if (lastSignal !== newSignal) {
+                console.log(`Сигнал изменился: ${lastSignal} → ${newSignal}`);
+                
+                // Показываем уведомление
+                showNotification(newSignal, price, reason);
+                
+                // Обновляем последний сигнал
+                lastSignal = newSignal;
+                
+                return true; // Сигнал изменился
+            }
+            
+            return false; // Сигнал не изменился
+        }
+
+        // ============================================
+        // НАСТРОЙКИ
+        // ============================================
+        function toggleSetting(setting) {
+            settings[setting] = !settings[setting];
+            document.getElementById(setting + 'Toggle').classList.toggle('active', settings[setting]);
+            
+            // Сохраняем в localStorage
+            localStorage.setItem('si_settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('si_settings');
+            if (saved) {
+                Object.assign(settings, JSON.parse(saved));
+                Object.keys(settings).forEach(key => {
+                    document.getElementById(key + 'Toggle')?.classList.toggle('active', settings[key]);
+                });
+            }
+        }
+
+        function testSignal() {
+            const signals = ['ПОКУПКА', 'ПРОДАЖА', 'ДЕРЖАТЬ'];
+            const randomSignal = signals[Math.floor(Math.random() * signals.length)];
+            const testPrice = 76683 + (Math.random() - 0.5) * 1000;
+            
+            showNotification(randomSignal, testPrice, 'Тестовый сигнал для проверки работы уведомлений');
+        }
+
+        // ============================================
+        // ОСТАЛЬНОЙ КОД (MOEX, НОВОСТИ, AI)
+        // ============================================
         const TICKER = "SiH6";
         let historyData = [];
         let currentTf = 60;
@@ -713,20 +978,12 @@
         let lastCandleTime = 0;
         let allNews = [];
         let currentNewsFilter = 'all';
-        let lastAnalysisResult = null;
 
         const tfMap = {
-            1: 1,
-            10: 10,
-            60: 60,
-            240: 24,
-            1440: 'D',
-            10080: 'W'
+            1: 1, 10: 10, 60: 60, 240: 24, 1440: 'D', 10080: 'W'
         };
 
-        // ===== ИСПРАВЛЕННАЯ ЗАГРУЗКА ДАННЫХ =====
-
-        function getFromDate(daysBack = 7) {
+        function getFromDate(daysBack) {
             const date = new Date();
             date.setDate(date.getDate() - daysBack);
             return date.toISOString().split('T')[0];
@@ -740,86 +997,58 @@
 
         async function fetchMoexData(timeframe = 60, isUpdate = false) {
             const loadingEl = document.getElementById('loading');
-            
-            if (!isUpdate) {
-                loadingEl.style.display = 'block';
-                loadingEl.innerText = 'Загрузка данных MOEX...';
-            }
-
             const interval = tfMap[timeframe];
+            
             if (!interval) {
                 loadingEl.innerText = '❌ Неподдерживаемый таймфрейм';
                 return;
             }
 
-            // ИСПРАВЛЕНО: правильная глубина истории для каждого ТФ
             let daysBack = 7;
-            if (timeframe === 1) daysBack = 1;      // M1: 1 день
-            else if (timeframe === 10) daysBack = 2; // M10: 2 дня
-            else if (timeframe === 60) daysBack = 14; // 1H: 7 дней (неделя)
-            else if (timeframe === 240) daysBack = 30; // 4H: месяц
-            else if (timeframe === 1440) daysBack = 90; // 1D: 3 месяца
-            else if (timeframe === 10080) daysBack = 365; // 1W: год
+            if (timeframe === 1) daysBack = 1;
+            else if (timeframe === 10) daysBack = 2;
+            else if (timeframe === 60) daysBack = 14; // 2 недели для H1
+            else if (timeframe === 240) daysBack = 30;
+            else if (timeframe === 1440) daysBack = 90;
+            else if (timeframe === 10080) daysBack = 365;
 
             const fromDate = getFromDate(daysBack);
             const tillDate = getTillDate();
-
-            // ИСПРАВЛЕНО: правильный URL без пробелов
             const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=${interval}&from=${fromDate}&till=${tillDate}`;
-
-            console.log('Загрузка:', { timeframe, interval, fromDate, tillDate, url });
 
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 
-                console.log('Получено свечей:', data.candles?.data?.length || 0);
-                
-                if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
-                    throw new Error(`Нет данных. Возможно, сегодня не торговый день.`);
+                if (!data.candles?.data?.length) {
+                    throw new Error('Нет данных');
                 }
                 
                 const columns = data.candles.columns;
-                const openIdx = columns.indexOf('open');
-                const closeIdx = columns.indexOf('close');
-                const highIdx = columns.indexOf('high');
-                const lowIdx = columns.indexOf('low');
-                const beginIdx = columns.indexOf('begin');
+                const idx = {
+                    open: columns.indexOf('open'),
+                    close: columns.indexOf('close'),
+                    high: columns.indexOf('high'),
+                    low: columns.indexOf('low'),
+                    begin: columns.indexOf('begin')
+                };
                 
-                const raw = data.candles.data;
-                const newData = raw.map(c => {
-                    const dateStr = c[beginIdx];
-                    const timestamp = Math.floor(new Date(dateStr).getTime() / 1000);
-                    return {
-                        time: timestamp,
-                        open: parseFloat(c[openIdx]),
-                        high: parseFloat(c[highIdx]),
-                        low: parseFloat(c[lowIdx]),
-                        close: parseFloat(c[closeIdx])
-                    };
-                });
+                const newData = data.candles.data.map(c => ({
+                    time: Math.floor(new Date(c[idx.begin]).getTime() / 1000),
+                    open: parseFloat(c[idx.open]),
+                    high: parseFloat(c[idx.high]),
+                    low: parseFloat(c[idx.low]),
+                    close: parseFloat(c[idx.close])
+                })).filter(c => !isNaN(c.close));
 
-                // Фильтруем невалидные данные
-                const validData = newData.filter(c => 
-                    !isNaN(c.open) && !isNaN(c.high) && !isNaN(c.low) && !isNaN(c.close) &&
-                    c.high >= c.low && c.high >= Math.max(c.open, c.close) && 
-                    c.low <= Math.min(c.open, c.close)
-                );
-
-                validData.sort((a, b) => a.time - b.time);
+                newData.sort((a, b) => a.time - b.time);
                 
-                console.log('Валидных свечей:', validData.length);
-                console.log('Последняя свеча:', validData[validData.length-1]);
-                console.log('Время последней:', new Date(validData[validData.length-1].time * 1000).toLocaleString('ru-RU'));
-                
-                if (validData.length > 0) {
-                    const lastTime = validData[validData.length - 1].time;
+                if (newData.length > 0) {
+                    const lastTime = newData[newData.length - 1].time;
                     
-                    // ВСЕГДА обновляем если данные новые или принудительное обновление
-                    if (!isUpdate || lastTime > lastCandleTime || validData.length !== historyData.length) {
-                        
-                        historyData = validData;
+                    if (!isUpdate || lastTime > lastCandleTime || newData.length !== historyData.length) {
+                        historyData = newData;
                         lastCandleTime = lastTime;
                         
                         if (!isUpdate) {
@@ -830,33 +1059,19 @@
                         
                         updatePriceTicker(historyData);
                         updateLastUpdateTime();
-                        
-                        if (isUpdate) {
-                            updateRealTimeNews();
-                        }
-                    } else {
-                        console.log('Данные не изменились');
                     }
                 }
                 
-                if (!isUpdate) {
-                    loadingEl.style.display = 'none';
-                    updateTfDescription(timeframe);
-                }
+                if (!isUpdate) loadingEl.style.display = 'none';
                 
             } catch (err) {
                 console.error("MOEX Error:", err);
-                if (!isUpdate) {
-                    loadingEl.innerHTML = `❌ Ошибка: ${err.message}<br><small>Проверьте консоль (F12)</small>`;
-                }
+                if (!isUpdate) loadingEl.innerHTML = `❌ Ошибка: ${err.message}`;
             }
         }
 
         function renderChart(data) {
-            if (typeof LightweightCharts === 'undefined') {
-                document.getElementById('loading').innerHTML = '❌ Библиотека графиков не загрузилась';
-                return;
-            }
+            if (typeof LightweightCharts === 'undefined') return;
             
             const chartContainer = document.getElementById('chart');
             const loadingEl = document.getElementById('loading');
@@ -864,488 +1079,105 @@
             chartContainer.appendChild(loadingEl);
             
             currentChart = LightweightCharts.createChart(chartContainer, {
-                layout: { 
-                    background: { color: '#161b22' }, 
-                    textColor: '#d1d4dc',
-                    fontSize: 12,
-                },
-                grid: { 
-                    vertLines: { color: '#30363d' }, 
-                    horzLines: { color: '#30363d' } 
-                },
-                timeScale: { 
-                    borderColor: '#30363d',
-                    timeVisible: true,
-                    secondsVisible: false,
-                    rightOffset: 5,
-                    barSpacing: 6,
-                },
-                crosshair: { 
-                    mode: LightweightCharts.CrosshairMode.Normal,
-                    vertLine: { color: '#758696', labelBackgroundColor: '#758696' },
-                    horzLine: { color: '#758696', labelBackgroundColor: '#758696' },
-                },
+                layout: { background: { color: '#161b22' }, textColor: '#d1d4dc', fontSize: 12 },
+                grid: { vertLines: { color: '#30363d' }, horzLines: { color: '#30363d' } },
+                timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false, rightOffset: 5, barSpacing: 6 },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
                 width: chartContainer.clientWidth,
                 height: 400,
-                rightPriceScale: { borderColor: '#30363d' },
             });
             
             candleSeries = currentChart.addCandlestickSeries({ 
-                upColor: '#238636', 
-                downColor: '#f85149', 
-                borderVisible: false, 
-                wickVisible: true,
+                upColor: '#238636', downColor: '#f85149', borderVisible: false, wickVisible: true,
                 priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
             });
             
             candleSeries.setData(data);
             currentChart.timeScale().fitContent();
-            currentChart.timeScale().scrollToPosition(-5, false);
             
             if (data.length > 0) {
-                const lastCandle = data[data.length - 1];
                 candleSeries.createPriceLine({
-                    price: lastCandle.close,
-                    color: '#8957e5',
-                    lineWidth: 2,
-                    lineStyle: LightweightCharts.LineStyle.Dashed,
-                    axisLabelVisible: true,
-                    title: 'Last',
+                    price: data[data.length - 1].close,
+                    color: '#8957e5', lineWidth: 2, lineStyle: LightweightCharts.LineStyle.Dashed,
+                    axisLabelVisible: true, title: 'Last',
                 });
             }
-            
-            let resizeTimeout;
-            window.addEventListener('resize', () => {
-                clearTimeout(resizeTimeout);
-                resizeTimeout = setTimeout(() => {
-                    if (currentChart) {
-                        currentChart.applyOptions({ width: chartContainer.clientWidth });
-                    }
-                }, 100);
-            });
         }
 
         function updateChartData(data) {
-            if (!candleSeries || !currentChart) {
-                renderChart(data);
-                return;
-            }
-            
+            if (!candleSeries) { renderChart(data); return; }
             candleSeries.setData(data);
             currentChart.timeScale().fitContent();
         }
 
         function updatePriceTicker(data) {
-            if (!data || data.length < 2) return;
+            if (!data?.length) return;
+            const last = data[data.length - 1];
+            const prev = data[data.length - 2] || last;
+            const change = last.close - prev.close;
+            const changePercent = (change / prev.close) * 100;
             
-            const lastCandle = data[data.length - 1];
-            const prevCandle = data[data.length - 2];
-            
-            const currentPrice = lastCandle.close;
-            const prevClose = prevCandle.close;
-            const change = currentPrice - prevClose;
-            const changePercent = (change / prevClose) * 100;
-            
-            document.getElementById('currentPrice').innerText = currentPrice.toFixed(2);
-            
+            document.getElementById('currentPrice').innerText = last.close.toFixed(2);
             const sign = change >= 0 ? '+' : '';
-            const changeClass = change >= 0 ? 'positive' : 'negative';
+            const cls = change >= 0 ? 'positive' : 'negative';
             
             document.getElementById('priceChange').innerText = `${sign}${change.toFixed(2)}`;
-            document.getElementById('priceChange').className = `ticker-change ${changeClass}`;
-            
+            document.getElementById('priceChange').className = `ticker-change ${cls}`;
             document.getElementById('changePercent').innerText = `${sign}${changePercent.toFixed(2)}%`;
-            document.getElementById('changePercent').className = `ticker-value ${changeClass}`;
-            
-            document.getElementById('changeValue').innerText = `(${sign}${change.toFixed(2)})`;
-            document.getElementById('changeValue').className = `ticker-change ${changeClass}`;
+            document.getElementById('changePercent').className = `ticker-value ${cls}`;
         }
 
         function updateLastUpdateTime() {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('ru-RU');
-            document.getElementById('lastUpdate').innerText = `Последнее обновление: ${timeStr} (МСК)`;
-        }
-
-        function updateTfDescription(tf) {
-            const descEl = document.getElementById('tfDescription');
-            const descriptions = {
-                1: '⚡ <strong>1-минутный таймфрейм</strong> — максимально точное отслеживание.',
-                10: '🔹 <strong>10-минутный таймфрейм</strong> — для скальпинга.',
-                60: '📊 <strong>1-часовой таймфрейм</strong> — анализ краткосрочных движений.',
-                240: '📈 <strong>4-часовой таймфрейм</strong> — среднесрочный тренд.',
-                1440: '📉 <strong>Дневной таймфрейм</strong> — глобальный тренд.',
-                10080: '📅 <strong>Недельный таймфрейм</strong> — долгосрочная перспектива.'
-            };
-            descEl.innerHTML = descriptions[tf] || '';
+            document.getElementById('lastUpdate').innerText = 
+                `Последнее обновление: ${new Date().toLocaleTimeString('ru-RU')} (МСК)`;
         }
 
         function initTimeframeButtons() {
-            const container = document.getElementById('tfSelector');
-            
-            container.addEventListener('click', function(e) {
+            document.getElementById('tfSelector').addEventListener('click', function(e) {
                 const btn = e.target.closest('.tf-btn');
                 if (!btn) return;
                 
-                e.preventDefault();
-                e.stopPropagation();
+                const newTf = parseInt(btn.dataset.tf);
+                if (newTf === currentTf) return;
                 
                 document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 
-                const newTf = parseInt(btn.dataset.tf);
                 currentTf = newTf;
-                lastCandleTime = 0; // Сбрасываем для принудительного обновления
-                
-                console.log('Переключение на таймфрейм:', newTf);
+                lastCandleTime = 0;
                 fetchMoexData(newTf, false);
             });
         }
 
-        // ===== НОВОСТИ =====
-
-        async function fetchNews() {
-            const newsList = document.getElementById('newsList');
-            newsList.innerHTML = '<div class="loading-news">Загрузка новостей...</div>';
-            
-            try {
-                const news = await fetchNewsFromMultipleSources();
-                allNews = news;
-                displayNews(news);
-                updateNewsCount(news.length);
-                updateNewsInfluenceIndicator(news);
-                
-            } catch (err) {
-                console.error('News error:', err);
-                const fallbackNews = generateMarketNews();
-                allNews = fallbackNews;
-                displayNews(fallbackNews);
-                updateNewsCount(fallbackNews.length);
-                updateNewsInfluenceIndicator(fallbackNews);
-            }
-        }
-
-        async function fetchNewsFromMultipleSources() {
-            const news = [];
-            
-            try {
-                // Пробуем загрузить RSS
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.rbc.ru/rbcnews.rss')}`;
-                const response = await fetch(proxyUrl);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-                    const items = xmlDoc.querySelectorAll('item');
-                    
-                    items.forEach((item, index) => {
-                        if (index >= 10) return;
-                        
-                        const title = item.querySelector('title')?.textContent || '';
-                        const desc = item.querySelector('description')?.textContent || '';
-                        const pubDate = item.querySelector('pubDate')?.textContent || new Date().toISOString();
-                        
-                        const impact = determineImpact(title + ' ' + desc);
-                        const sentiment = analyzeSentiment(title + ' ' + desc);
-                        
-                        if (isRelevantNews(title + ' ' + desc)) {
-                            news.push({
-                                id: Date.now() + index,
-                                time: new Date(pubDate),
-                                source: 'РБК',
-                                title: title,
-                                text: desc.replace(/<[^>]*>/g, '').substring(0, 200),
-                                impact: impact,
-                                sentiment: sentiment,
-                                url: item.querySelector('link')?.textContent || '#'
-                            });
-                        }
-                    });
-                }
-            } catch (e) {
-                console.log('RSS failed:', e);
-            }
-            
-            if (news.length < 5) {
-                news.push(...getMacroNews());
-            }
-            
-            return news.sort((a, b) => b.time - a.time);
-        }
-
-        function isRelevantNews(text) {
-            const keywords = ['доллар', 'рубль', 'USD', 'RUB', 'Si', 'фьючерс', 'MOEX', 'ЦБ', 'ставка', 'нефть', 'санкции'];
-            const lowerText = text.toLowerCase();
-            return keywords.some(k => lowerText.includes(k.toLowerCase()));
-        }
-
-        function determineImpact(text) {
-            const highKeywords = ['ЦБ РФ', 'ключевая ставка', 'санкции', 'Пауэлл', 'ФРС', 'военный', 'кризис'];
-            const mediumKeywords = ['нефть', 'Brent', 'инфляция', 'экспорт'];
-            
-            const lowerText = text.toLowerCase();
-            if (highKeywords.some(k => lowerText.includes(k.toLowerCase()))) return 'high';
-            if (mediumKeywords.some(k => lowerText.includes(k.toLowerCase()))) return 'medium';
-            return 'low';
-        }
-
-        function analyzeSentiment(text) {
-            const bullishKeywords = ['рост', 'укрепление', 'поддержка', 'стимулы'];
-            const bearishKeywords = ['падение', 'ослабление', 'санкции', 'кризис'];
-            
-            const lowerText = text.toLowerCase();
-            let bullishScore = bullishKeywords.filter(k => lowerText.includes(k)).length;
-            let bearishScore = bearishKeywords.filter(k => lowerText.includes(k)).length;
-            
-            if (bullishScore > bearishScore) return 'bullish';
-            if (bearishScore > bullishScore) return 'bearish';
-            return 'neutral';
-        }
-
-        function getMacroNews() {
-            return [{
-                id: 1,
-                time: new Date(),
-                source: 'Анализ',
-                title: 'Технические уровни SiH6',
-                text: 'Поддержка: 76500, Сопротивление: 77000',
-                impact: 'medium',
-                sentiment: 'neutral',
-                url: '#'
-            }];
-        }
-
-        function generateMarketNews() {
-            if (!historyData || historyData.length < 2) return getMacroNews();
-            
-            const last = historyData[historyData.length-1];
-            const prev = historyData[historyData.length-2];
-            const change = last.close - prev.close;
-            const changePercent = (change / prev.close * 100).toFixed(2);
-            
-            return [{
-                id: Date.now(),
-                time: new Date(),
-                source: 'Рынок',
-                title: `${change > 0 ? '🟢' : '🔴'} SiH6: ${change > 0 ? 'рост' : 'снижение'} ${Math.abs(changePercent)}%`,
-                text: `Цена: ${last.close.toFixed(2)}`,
-                impact: Math.abs(changePercent) > 0.5 ? 'high' : 'medium',
-                sentiment: change > 0 ? 'bullish' : 'bearish',
-                url: '#'
-            }];
-        }
-
-        function updateRealTimeNews() {
-            if (!historyData || historyData.length < 2) return;
-            
-            const last = historyData[historyData.length-1];
-            const prev = historyData[historyData.length-2];
-            const change = Math.abs((last.close - prev.close) / prev.close * 100);
-            
-            if (change > 0.3) {
-                const trend = last.close > prev.close ? 'рост' : 'снижение';
-                const sentiment = last.close > prev.close ? 'bullish' : 'bearish';
-                
-                allNews.unshift({
-                    id: Date.now(),
-                    time: new Date(),
-                    source: 'Авто',
-                    title: `⚡ Резкое ${trend} SiH6 на ${change.toFixed(2)}%`,
-                    text: `${prev.close.toFixed(2)} → ${last.close.toFixed(2)}`,
-                    impact: change > 0.5 ? 'high' : 'medium',
-                    sentiment: sentiment,
-                    url: '#'
-                });
-                
-                if (allNews.length > 20) allNews.pop();
-                displayNews(allNews);
-                updateNewsCount(allNews.length);
-                updateNewsInfluenceIndicator(allNews);
-            }
-        }
-
-        function calculateNewsInfluence(news) {
-            if (!news || news.length === 0) return { score: 0, direction: 'neutral', strength: 0 };
-            
-            let totalWeight = 0;
-            let weightedSentiment = 0;
-            
-            const impactWeights = { high: 0.4, medium: 0.25, low: 0.1 };
-            const sentimentValues = { bullish: 1, neutral: 0, bearish: -1 };
-            
-            news.slice(0, 10).forEach(item => {
-                const weight = impactWeights[item.impact] || 0.1;
-                const sentiment = sentimentValues[item.sentiment] || 0;
-                const ageHours = (new Date() - item.time) / (1000 * 60 * 60);
-                const timeDecay = Math.max(0.3, 1 - (ageHours / 24));
-                
-                totalWeight += weight * timeDecay;
-                weightedSentiment += sentiment * weight * timeDecay;
-            });
-            
-            if (totalWeight === 0) return { score: 0, direction: 'neutral', strength: 0 };
-            
-            const score = weightedSentiment / totalWeight;
-            const strength = Math.min(100, totalWeight * 100);
-            
-            return {
-                score: score,
-                direction: score > 0.2 ? 'bullish' : score < -0.2 ? 'bearish' : 'neutral',
-                strength: strength
-            };
-        }
-
-        function updateNewsInfluenceIndicator(news) {
-            const influence = calculateNewsInfluence(news);
-            const indicator = document.getElementById('newsInfluence');
-            const fill = document.getElementById('influenceFill');
-            const text = document.getElementById('influenceText');
-            
-            indicator.style.display = 'flex';
-            
-            const percentage = Math.abs(influence.score) * 100;
-            fill.style.width = `${Math.min(100, percentage * 2)}%`;
-            
-            fill.className = 'influence-fill';
-            if (influence.direction === 'bullish') {
-                fill.classList.add('bullish');
-                text.innerText = `Бычий (${influence.strength.toFixed(0)}%)`;
-                text.style.color = '#3fb950';
-            } else if (influence.direction === 'bearish') {
-                fill.classList.add('bearish');
-                text.innerText = `Медвежий (${influence.strength.toFixed(0)}%)`;
-                text.style.color = '#f85149';
-            } else {
-                fill.classList.add('neutral');
-                text.innerText = `Нейтрально`;
-                text.style.color = '#8b949e';
-            }
-            
-            window.currentNewsInfluence = influence;
-        }
-
-        function displayNews(news) {
-            const container = document.getElementById('newsList');
-            if (news.length === 0) {
-                container.innerHTML = '<div class="error-news">Нет новостей</div>';
-                return;
-            }
-            
-            const filtered = currentNewsFilter === 'all' 
-                ? news 
-                : news.filter(n => n.impact === currentNewsFilter);
-            
-            container.innerHTML = filtered.map(item => `
-                <div class="news-item ${item.impact}" onclick="window.open('${item.url}', '_blank')">
-                    <div class="news-time">
-                        ${formatNewsTime(item.time)}
-                        <span class="news-source">${item.source}</span>
-                        ${item.sentiment === 'bullish' ? '🟢' : item.sentiment === 'bearish' ? '🔴' : '⚪'}
-                    </div>
-                    <div class="news-text">${item.title}</div>
-                    <span class="news-impact impact-${item.impact}">
-                        ${item.impact === 'high' ? '🔴 Высокое' : item.impact === 'medium' ? '🟡 Среднее' : '🔵 Низкое'}
-                    </span>
-                </div>
-            `).join('');
-        }
-
-        function formatNewsTime(date) {
-            const now = new Date();
-            const diff = Math.floor((now - date) / 1000 / 60);
-            
-            if (diff < 1) return 'Только что';
-            if (diff < 60) return `${diff} мин назад`;
-            if (diff < 1440) return `${Math.floor(diff/60)} ч назад`;
-            return date.toLocaleDateString('ru-RU');
-        }
-
-        function updateNewsCount(count) {
-            document.getElementById('newsCount').innerText = count;
-        }
-
-        function filterNews(type) {
-            currentNewsFilter = type;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            displayNews(allNews);
-        }
-
-        function refreshNews() {
-            fetchNews();
-        }
-
-        // ===== AI АНАЛИЗ =====
-
+        // ============================================
+        // AI АНАЛИЗ С УВЕДОМЛЕНИЯМИ
+        // ============================================
         async function analyzeWithAI() {
             const apiKey = document.getElementById('api_key_input').value.trim();
-            if (!apiKey) {
-                alert("Введите API-ключ OpenRouter");
-                return;
-            }
-            if (!historyData || historyData.length === 0) {
-                alert("Сначала дождитесь загрузки данных");
-                return;
-            }
+            if (!apiKey) { alert("Введите API-ключ"); return; }
+            if (!historyData?.length) { alert("Нет данных"); return; }
 
             document.getElementById('signal_text').innerText = "АНАЛИЗ...";
-            document.getElementById('ai_desc').innerText = "Анализ: техника + новости...";
-            document.getElementById('statsGrid').style.display = 'none';
-
+            
             const lastData = historyData.slice(-50);
-            const recentNews = allNews.slice(0, 8);
-            const newsInfluence = calculateNewsInfluence(allNews);
-            
-            const tfNames = {1: '1 минута', 10: '10 минут', 60: '1 час', 240: '4 часа', 1440: '1 день', 10080: '1 неделя'};
             const currentPrice = lastData[lastData.length - 1].close;
-            
-            const newsContext = recentNews.map(n => 
-                `[${n.impact.toUpperCase()}|${n.sentiment}] ${n.title}`
-            ).join('\n');
             
             const requestBody = {
                 model: "deepseek/deepseek-chat",
                 messages: [{
                     role: "user",
-                    content: `Ты профессиональный трейдер. Анализируй фьючерс ${TICKER} (доллар/рубль).
+                    content: `Ты трейдер. Анализируй фьючерс ${TICKER}.
+Таймфрейм: ${currentTf === 60 ? '1 час' : currentTf} мин
+Цена: ${currentPrice}
+Данные: ${JSON.stringify(lastData.slice(-20))}
 
-Технические данные:
-- Таймфрейм: ${tfNames[currentTf]}
-- Текущая цена: ${currentPrice}
-- Последние свечи: ${JSON.stringify(lastData.slice(-30))}
-
-Новостной фон:
-${newsContext || 'Нет значимых новостей'}
-
-Влияние новостей: ${newsInfluence.direction} (сила ${newsInfluence.strength.toFixed(1)}%)
-
-Задача:
-1. Рассчитай RSI, MACD, EMA
-2. Определи технический сигнал
-3. Оцени влияние новостей на сигнал
-4. Дай ИТОГОВЫЙ сигнал
-
-Ответь в JSON:
-{
-  "technical_signal": "ПОКУПКА|ПРОДАЖА|ДЕРЖАТЬ",
-  "news_signal": "ПОКУПКА|ПРОДАЖА|НЕЙТРАЛЬНО",
-  "final_signal": "ПОКУПКА|ПРОДАЖА|ДЕРЖАТЬ",
-  "confidence": 0-100,
-  "rsi": число,
-  "macd": "описание",
-  "ema20": число,
-  "ema50": число,
-  "trend": "восходящий|нисходящий|боковик",
-  "technical_reason": "обоснование",
-  "news_impact": "влияние новостей",
-  "convergence": "совпадают|противоречат|нейтрально"
-}`
+Ответь ТОЛЬКО JSON:
+{"signal":"ПОКУПКА|ПРОДАЖА|ДЕРЖАТЬ","confidence":0-100,"reason":"кратко","rsi":0,"macd":"описание"}`
                 }]
             };
 
             let apiUrl = "https://openrouter.ai/api/v1/chat/completions";
-            let fetchOptions = {
+            const fetchOptions = {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${apiKey}`,
@@ -1366,96 +1198,97 @@ ${newsContext || 'Нет значимых новостей'}
                 const aiRes = await response.json();
                 if (aiRes.error) throw new Error(aiRes.error.message);
 
-                parseAndDisplayAIResponse(aiRes.choices[0].message.content);
-                resetCountdown();
+                const result = parseAIResponse(aiRes.choices[0].message.content);
+                
+                // ОБНОВЛЯЕМ UI
+                const ui = document.getElementById('signal_ui');
+                const stext = document.getElementById('signal_text');
+                const descEl = document.getElementById('ai_desc');
+                
+                ui.className = "signal-display";
+                if (result.signal === "ПОКУПКА") {
+                    ui.classList.add("buy");
+                    stext.innerText = "ПОКУПКА";
+                } else if (result.signal === "ПРОДАЖА") {
+                    ui.classList.add("sell");
+                    stext.innerText = "ПРОДАЖА";
+                } else {
+                    ui.classList.add("hold");
+                    stext.innerText = "ДЕРЖАТЬ";
+                }
+                
+                descEl.innerText = `🎯 Уверенность: ${result.confidence}%\n📝 ${result.reason}`;
+                
+                // ПОКАЗЫВАЕМ УВЕДОМЛЕНИЕ ЕСЛИ СИГНАЛ ИЗМЕНИЛСЯ
+                const signalChanged = processNewSignal(result.signal, currentPrice, result.reason);
+                
+                // Обновляем статистику
+                document.getElementById('statsGrid').style.display = 'grid';
+                document.getElementById('statRsi').innerText = result.rsi?.toFixed(2) || '-';
+                document.getElementById('statMacd').innerText = result.macd || '-';
+                document.getElementById('statEma').innerText = '-';
+                document.getElementById('statTrend').innerText = '-';
                 
             } catch (e) {
                 console.error("AI Error:", e);
                 document.getElementById('signal_text').innerText = "ОШИБКА";
-                document.getElementById('ai_desc').innerText = `Ошибка: ${e.message}`;
-                document.getElementById('signal_ui').className = "signal-display hold";
+                document.getElementById('ai_desc').innerText = e.message;
             }
         }
 
-        function parseAndDisplayAIResponse(answer) {
-            const ui = document.getElementById('signal_ui');
-            const stext = document.getElementById('signal_text');
-            const descEl = document.getElementById('ai_desc');
+        function parseAIResponse(answer) {
+            const defaultResult = { signal: "ДЕРЖАТЬ", confidence: 50, reason: "Нет данных", rsi: 50, macd: "-" };
             
-            let result = {
-                technical_signal: "ДЕРЖАТЬ",
-                news_signal: "НЕЙТРАЛЬНО",
-                final_signal: "ДЕРЖАТЬ",
-                confidence: 50,
-                rsi: null,
-                macd: null,
-                ema20: null,
-                ema50: null,
-                trend: "неопределен",
-                technical_reason: "",
-                news_impact: "",
-                convergence: "нейтрально"
-            };
-
             try {
                 const jsonMatch = answer.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
-                    const parsed = JSON.parse(jsonMatch[0]);
-                    result = { ...result, ...parsed };
+                    return { ...defaultResult, ...JSON.parse(jsonMatch[0]) };
                 }
             } catch (e) {
-                console.warn("JSON parse failed, using text analysis");
-            }
-
-            ui.className = "signal-display";
-            if (result.final_signal === "ПОКУПКА") {
-                ui.classList.add("buy");
-                stext.innerText = "ПОКУПКА";
-            } else if (result.final_signal === "ПРОДАЖА") {
-                ui.classList.add("sell");
-                stext.innerText = "ПРОДАЖА";
-            } else {
-                ui.classList.add("hold");
-                stext.innerText = "ДЕРЖАТЬ";
-            }
-
-            let descText = "";
-            if (result.convergence) {
-                const emoji = result.convergence === 'совпадают' ? '✅' : result.convergence === 'противоречат' ? '⚠️' : '➖';
-                descText += `${emoji} Сходство: ${result.convergence}\n\n`;
+                // Fallback
+                const upper = answer.toUpperCase();
+                if (upper.includes("ПОКУПКА")) return { ...defaultResult, signal: "ПОКУПКА", reason: answer.substring(0, 100) };
+                if (upper.includes("ПРОДАЖА")) return { ...defaultResult, signal: "ПРОДАЖА", reason: answer.substring(0, 100) };
             }
             
-            descText += `📊 Техника: ${result.technical_signal}\n`;
-            descText += `📰 Новости: ${result.news_signal}\n`;
-            
-            if (result.technical_reason) descText += `\n📝 ${result.technical_reason}`;
-            if (result.news_impact) descText += `\n\n📡 ${result.news_impact}`;
-            if (result.confidence) descText = `🎯 Уверенность: ${result.confidence}%\n` + descText;
-            
-            descEl.innerText = descText;
-
-            if (result.rsi || result.macd) {
-                document.getElementById('statsGrid').style.display = 'grid';
-                document.getElementById('statRsi').innerText = result.rsi ? result.rsi.toFixed(2) : '-';
-                document.getElementById('statMacd').innerText = result.macd || '-';
-                document.getElementById('statEma').innerText = (result.ema20 && result.ema50) 
-                    ? `${result.ema20.toFixed(2)} / ${result.ema50.toFixed(2)}` 
-                    : '-';
-                document.getElementById('statTrend').innerText = result.trend || '-';
-            }
+            return defaultResult;
         }
 
-        // ===== УПРАВЛЕНИЕ =====
+        // ============================================
+        // НОВОСТИ (упрощенно)
+        // ============================================
+        async function fetchNews() {
+            // Упрощенная загрузка новостей
+            const news = [{
+                id: 1, time: new Date(), source: 'Анализ', 
+                title: 'Технические уровни SiH6', 
+                text: 'Поддержка: 76500, Сопротивление: 77000',
+                impact: 'medium', sentiment: 'neutral'
+            }];
+            
+            allNews = news;
+            updateNewsInfluenceIndicator(news);
+        }
 
+        function updateNewsInfluenceIndicator(news) {
+            document.getElementById('newsInfluence').style.display = 'flex';
+            document.getElementById('influenceFill').style.width = '50%';
+            document.getElementById('influenceFill').className = 'influence-fill neutral';
+        }
+
+        function refreshNews() { fetchNews(); }
+        function filterNews(type) { currentNewsFilter = type; }
+
+        // ============================================
+        // УПРАВЛЕНИЕ
+        // ============================================
         function startAutoUpdate() {
             stopAutoUpdate();
-            
             countdownSeconds = 30;
             updateTimerDisplay();
             
             autoUpdateInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
-                    console.log('Автообновление:', new Date().toLocaleTimeString('ru-RU'));
                     fetchMoexData(currentTf, true);
                 }
             }, 30000);
@@ -1474,27 +1307,18 @@ ${newsContext || 'Нет значимых новостей'}
             if (countdownInterval) clearInterval(countdownInterval);
         }
 
-        function resetCountdown() {
-            countdownSeconds = 30;
-            updateTimerDisplay();
-        }
-
         function updateTimerDisplay() {
-            const minutes = Math.floor(countdownSeconds / 60);
-            const seconds = countdownSeconds % 60;
+            const m = Math.floor(countdownSeconds / 60);
+            const s = countdownSeconds % 60;
             document.getElementById('timerDisplay').innerText = 
-                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
 
         function saveConfig() {
             const key = document.getElementById('api_key_input').value.trim();
-            if (key) {
-                localStorage.setItem('si_key', key);
-                alert("Ключ сохранён");
-            } else {
-                localStorage.removeItem('si_key');
-                alert("Ключ удалён");
-            }
+            if (key) localStorage.setItem('si_key', key);
+            else localStorage.removeItem('si_key');
+            alert(key ? "Ключ сохранён" : "Ключ удалён");
         }
 
         function toggleProxy() {
@@ -1504,33 +1328,35 @@ ${newsContext || 'Нет значимых новостей'}
             btn.classList.toggle('active', useProxy);
         }
 
-        window.toggleExplain = function() {
-            const content = document.getElementById('explainContent');
-            const toggle = document.getElementById('explainToggle');
-            if (content.classList.contains('collapsed')) {
-                content.classList.remove('collapsed');
-                toggle.innerText = '−';
-            } else {
-                content.classList.add('collapsed');
-                toggle.innerText = '+';
-            }
-        };
-
-        // Инициализация
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================
         window.addEventListener('DOMContentLoaded', () => {
+            // Загружаем настройки
+            loadSettings();
+            
+            // Загружаем ключ
             const savedKey = localStorage.getItem('si_key');
             if (savedKey) document.getElementById('api_key_input').value = savedKey;
             
+            // Инициализация
             initTimeframeButtons();
             fetchMoexData(60, false);
             fetchNews();
             
+            // Автообновление
             if (document.getElementById('autoUpdateCheck').checked) {
                 startAutoUpdate();
             }
             
-            // Обновляем новости каждые 5 минут
-            setInterval(fetchNews, 300000);
+            document.getElementById('autoUpdateCheck').addEventListener('change', (e) => {
+                e.target.checked ? startAutoUpdate() : stopAutoUpdate();
+            });
+            
+            // Запрашиваем разрешение на уведомления
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission();
+            }
         });
     </script>
 </body>
