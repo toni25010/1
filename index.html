@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Si-3.26 Аналитик | Реальное время + Новости</title>
+    <title>Si-3.26 Аналитик | Теханализ + Новостной фон</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
@@ -155,6 +155,7 @@
             margin-bottom: 8px;
             transition: all 0.2s;
             cursor: pointer;
+            position: relative;
         }
 
         .news-item:hover {
@@ -226,6 +227,43 @@
             background: var(--accent);
             border-color: var(--accent);
             color: white;
+        }
+
+        /* Индикатор влияния новостей */
+        .news-influence-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #0d1117;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .influence-bar {
+            flex: 1;
+            height: 6px;
+            background: #21262d;
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .influence-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .influence-fill.bullish { background: var(--buy); }
+        .influence-fill.bearish { background: var(--sell); }
+        .influence-fill.neutral { background: #8b949e; }
+
+        .influence-label {
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 60px;
         }
 
         .signal-display {
@@ -540,7 +578,7 @@
     </style>
 </head>
 <body>
-    <h2>Анализ Si-3.26 (H6) / фьючерс SiH6 + Новости</h2>
+    <h2>Анализ Si-3.26 (H6) | Теханализ + Новостной фон</h2>
 
     <div class="grid">
         <div class="card" id="chartContainer">
@@ -557,11 +595,20 @@
             </div>
             <div class="last-update" id="lastUpdate">Последнее обновление: -</div>
 
+            <!-- Индикатор влияния новостей -->
+            <div class="news-influence-indicator" id="newsInfluence" style="display: none;">
+                <span class="influence-label">📰 Влияние:</span>
+                <div class="influence-bar">
+                    <div class="influence-fill" id="influenceFill" style="width: 0%"></div>
+                </div>
+                <span id="influenceText" style="font-size: 11px; color: #8b949e;">Нейтрально</span>
+            </div>
+
             <!-- Новости -->
             <div class="news-container" id="newsContainer">
                 <div class="news-header">
                     <div class="news-title">
-                        📰 Новости рынка
+                        📰 Новостной фон
                         <span class="news-badge" id="newsCount">0</span>
                     </div>
                     <button class="small" onclick="refreshNews()" style="width: auto; padding: 6px 12px; margin: 0;">🔄</button>
@@ -591,10 +638,10 @@
                 </div>
 
                 <div id="signal_ui" class="signal-display hold">
-                    <div style="font-size: 11px; opacity: 0.7;">DEEPSEEK V3 SIGNAL</div>
+                    <div style="font-size: 11px; opacity: 0.7;">DEEPSEEK V3 | Теханализ + Новости</div>
                     <div id="signal_text" style="font-size: 26px; font-weight: bold;">ОЖИДАНИЕ</div>
                 </div>
-                <div id="ai_desc" class="info">Нажмите кнопку для AI‑анализа</div>
+                <div id="ai_desc" class="info">Нажмите кнопку для комплексного анализа</div>
                 
                 <div class="stats-grid" id="statsGrid" style="display: none;">
                     <div class="stat-item">
@@ -622,11 +669,10 @@
                     <span class="timer" id="timerDisplay">00:30</span>
                 </div>
 
-                <button onclick="analyzeWithAI()" type="button">🚀 ЗАПУСТИТЬ AI АНАЛИЗ</button>
+                <button onclick="analyzeWithAI()" type="button">🚀 КОМПЛЕКСНЫЙ АНАЛИЗ</button>
                 <button class="small" onclick="toggleProxy()" id="proxyBtn" type="button">🔁 CORS-прокси: ВЫКЛ</button>
                 <p class="warning">
-                    ⚠️ Если AI выдаёт ошибку CORS, установите расширение 
-                    <a href="https://chrome.google.com/webstore/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigbkjea" target="_blank" rel="noopener">Allow CORS</a>
+                    ⚠️ AI анализирует технические индикаторы И новостной фон для точного сигнала
                 </p>
             </div>
 
@@ -648,13 +694,17 @@
 
     <div class="explain-card">
         <div class="explain-header" onclick="toggleExplain()">
-            <span class="explain-title">📘 Как DeepSeek анализирует график</span>
+            <span class="explain-title">📘 Методология анализа</span>
             <span class="explain-toggle" id="explainToggle">−</span>
         </div>
         <div class="explain-content" id="explainContent">
-            <strong>Технические индикаторы:</strong> RSI (14), MACD, скользящие средние (EMA20/50/200), уровни поддержки/сопротивления, анализ объёмов.<br>
-            <span id="tfDescription"></span><br>
-            <strong>Подход:</strong> DeepSeek получает свежие данные, рассчитывает индикаторы и выдаёт сигнал на основе многофакторного анализа.
+            <strong>1. Технический анализ:</strong> RSI, MACD, EMA, уровни поддержки/сопротивления.<br><br>
+            <strong>2. Новостной анализ:</strong> 
+            - 🔴 Высокий импакт: ЦБ, санкции, геополитика (вес 40%)<br>
+            - 🟡 Средний импакт: нефть, макро (вес 25%)<br>
+            - 🔵 Низкий импакт: общие новости (вес 10%)<br><br>
+            <strong>3. Комплексная оценка:</strong> AI корректирует технический сигнал на основе новостного фона.<br>
+            <span id="tfDescription"></span>
         </div>
     </div>
 
@@ -671,6 +721,7 @@
         let lastCandleTime = 0;
         let allNews = [];
         let currentNewsFilter = 'all';
+        let lastAnalysisResult = null;
 
         const tfMap = {
             1: 1,
@@ -681,86 +732,81 @@
             10080: 'W'
         };
 
-        // ===== НОВОСТИ =====
-
-        // Источники новостей (бесплатные API)
-        const NEWS_SOURCES = {
-            // RSS-ленты через RSS2JSON API
-            rss: [
-                { name: 'РБК', url: 'https://www.rbc.ru/rbcnews.rss', type: 'russian' },
-                { name: 'Интерфакс', url: 'https://www.interfax.ru/rss.asp', type: 'russian' },
-                { name: 'Bloomberg', url: 'https://feeds.bloomberg.com/markets/news.rss', type: 'global' }
-            ]
-        };
+        // ===== НОВОСТИ И АНАЛИЗ ВЛИЯНИЯ =====
 
         async function fetchNews() {
             const newsList = document.getElementById('newsList');
             newsList.innerHTML = '<div class="loading-news">Загрузка новостей...</div>';
             
             try {
-                // Используем NewsAPI через прокси (бесплатный tier)
-                // Или загружаем статические новости если API недоступен
                 const news = await fetchNewsFromMultipleSources();
-                
                 allNews = news;
                 displayNews(news);
                 updateNewsCount(news.length);
+                updateNewsInfluenceIndicator(news);
                 
             } catch (err) {
                 console.error('News error:', err);
-                // Fallback: генерируем релевантные новости на основе данных рынка
                 const fallbackNews = generateMarketNews();
                 allNews = fallbackNews;
                 displayNews(fallbackNews);
                 updateNewsCount(fallbackNews.length);
+                updateNewsInfluenceIndicator(fallbackNews);
             }
         }
 
         async function fetchNewsFromMultipleSources() {
             const news = [];
-            const now = new Date();
             
-            // Пытаемся загрузить из RSS через allorigins прокси
+            // Пытаемся загрузить RSS
             try {
-                const rssUrl = 'https://www.rbc.ru/rbcnews.rss';
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+                const rssFeeds = [
+                    { url: 'https://www.rbc.ru/rbcnews.rss', source: 'РБК' },
+                    { url: 'https://www.interfax.ru/rss.asp', source: 'Интерфакс' }
+                ];
                 
-                const response = await fetch(proxyUrl);
-                if (response.ok) {
-                    const data = await response.json();
-                    // Парсим XML (упрощенно)
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-                    const items = xmlDoc.querySelectorAll('item');
-                    
-                    items.forEach((item, index) => {
-                        if (index >= 10) return; // Только 10 последних
-                        
-                        const title = item.querySelector('title')?.textContent || '';
-                        const desc = item.querySelector('description')?.textContent || '';
-                        const pubDate = item.querySelector('pubDate')?.textContent || new Date().toISOString();
-                        
-                        // Определяем важность по ключевым словам
-                        const impact = determineImpact(title + ' ' + desc);
-                        
-                        if (isRelevantNews(title + ' ' + desc)) {
-                            news.push({
-                                id: Date.now() + index,
-                                time: new Date(pubDate),
-                                source: 'РБК',
-                                title: title,
-                                text: desc.replace(/<[^>]*>/g, '').substring(0, 200),
-                                impact: impact,
-                                url: item.querySelector('link')?.textContent || '#'
+                for (let feed of rssFeeds) {
+                    try {
+                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(feed.url)}`;
+                        const response = await fetch(proxyUrl);
+                        if (response.ok) {
+                            const data = await response.json();
+                            const parser = new DOMParser();
+                            const xmlDoc = parser.parseFromString(data.contents, "text/xml");
+                            const items = xmlDoc.querySelectorAll('item');
+                            
+                            items.forEach((item, index) => {
+                                if (index >= 5) return;
+                                
+                                const title = item.querySelector('title')?.textContent || '';
+                                const desc = item.querySelector('description')?.textContent || '';
+                                const pubDate = item.querySelector('pubDate')?.textContent || new Date().toISOString();
+                                
+                                const impact = determineImpact(title + ' ' + desc);
+                                const sentiment = analyzeSentiment(title + ' ' + desc);
+                                
+                                if (isRelevantNews(title + ' ' + desc)) {
+                                    news.push({
+                                        id: Date.now() + index,
+                                        time: new Date(pubDate),
+                                        source: feed.source,
+                                        title: title,
+                                        text: desc.replace(/<[^>]*>/g, '').substring(0, 200),
+                                        impact: impact,
+                                        sentiment: sentiment, // 'bullish', 'bearish', 'neutral'
+                                        url: item.querySelector('link')?.textContent || '#'
+                                    });
+                                }
                             });
                         }
-                    });
+                    } catch (e) {
+                        console.log(`RSS ${feed.source} failed:`, e);
+                    }
                 }
             } catch (e) {
                 console.log('RSS fetch failed:', e);
             }
             
-            // Если новостей мало, добавляем макроэкономические
             if (news.length < 5) {
                 news.push(...getMacroNews());
             }
@@ -772,8 +818,9 @@
             const keywords = [
                 'доллар', 'рубль', 'USD', 'RUB', 'Si', 'фьючерс', 'MOEX', 'Мосбиржа',
                 'ЦБ', 'центробанк', 'ставка', 'ключевая ставка', 'инфляция',
-                'нефть', ' Brent', 'WTI', 'urals', 'санкции', 'экспорт',
-                'торги', 'биржа', 'курс', 'валюта', 'форекс', 'forex'
+                'нефть', 'Brent', 'WTI', 'urals', 'санкции', 'экспорт',
+                'торги', 'биржа', 'курс', 'валюта', 'форекс', 'forex',
+                'Пауэлл', 'ФРС', 'Россия', 'США', 'Украина', 'военный', 'конфликт'
             ];
             
             const lowerText = text.toLowerCase();
@@ -781,14 +828,27 @@
         }
 
         function determineImpact(text) {
-            const highKeywords = ['ЦБ РФ', 'ключевая ставка', 'санкции', 'военный', 'кризис', 'обвал', 'резкий скачок'];
-            const mediumKeywords = ['нефть', 'Brent', 'инфляция', 'экспорт', 'импорт', 'торговля'];
+            const highKeywords = ['ЦБ РФ', 'ключевая ставка', 'санкции', 'Пауэлл', 'ФРС', 'военный', 'кризис', 'обвал', 'резкий скачок', 'конфликт'];
+            const mediumKeywords = ['нефть', 'Brent', 'инфляция', 'экспорт', 'импорт', 'торговля', 'экономика'];
             
             const lowerText = text.toLowerCase();
             
             if (highKeywords.some(k => lowerText.includes(k.toLowerCase()))) return 'high';
             if (mediumKeywords.some(k => lowerText.includes(k.toLowerCase()))) return 'medium';
             return 'low';
+        }
+
+        function analyzeSentiment(text) {
+            const bullishKeywords = ['рост', 'укрепление', 'поддержка', 'стимулы', 'снижение ставки', 'рост нефти', 'девальвация'];
+            const bearishKeywords = ['падение', 'ослабление', 'санкции', 'повышение ставки', 'кризис', 'война', 'конфликт', 'запрет'];
+            
+            const lowerText = text.toLowerCase();
+            let bullishScore = bullishKeywords.filter(k => lowerText.includes(k)).length;
+            let bearishScore = bearishKeywords.filter(k => lowerText.includes(k)).length;
+            
+            if (bullishScore > bearishScore) return 'bullish';
+            if (bearishScore > bullishScore) return 'bearish';
+            return 'neutral';
         }
 
         function getMacroNews() {
@@ -798,34 +858,16 @@
                     id: 1,
                     time: new Date(now - 3600000),
                     source: 'Макро',
-                    title: 'Курс USD/RUB на открытии торгов',
-                    text: `Текущий курс фьючерса SiH6: ${historyData.length > 0 ? historyData[historyData.length-1].close.toFixed(2) : '76683.00'}. Динамика за последний час: ${historyData.length > 1 ? ((historyData[historyData.length-1].close - historyData[historyData.length-2].close) / historyData[historyData.length-2].close * 100).toFixed(2) : '0.00'}%`,
+                    title: 'Текущая ситуация на рынке Si',
+                    text: `Фьючерс торгуется в диапазоне. Технические уровни: поддержка 76500, сопротивление 77000.`,
                     impact: 'medium',
-                    url: '#'
-                },
-                {
-                    id: 2,
-                    time: new Date(now - 7200000),
-                    source: 'Тех.анализ',
-                    title: 'Уровни поддержки и сопротивления Si',
-                    text: 'Ближайшая поддержка: 76500, сопротивление: 77000. Пробой уровня 77000 откроет дорогу к 77500.',
-                    impact: 'medium',
-                    url: '#'
-                },
-                {
-                    id: 3,
-                    time: new Date(now - 10800000),
-                    source: 'Рынок',
-                    title: 'Объемы торгов фьючерсом Si',
-                    text: 'Объемы торгов в пределах среднего значения. Волатильность снижается перед важными макроданными.',
-                    impact: 'low',
+                    sentiment: 'neutral',
                     url: '#'
                 }
             ];
         }
 
         function generateMarketNews() {
-            // Генерация новостей на основе текущих рыночных данных
             const now = new Date();
             const lastPrice = historyData.length > 0 ? historyData[historyData.length-1].close : 76683;
             const prevPrice = historyData.length > 1 ? historyData[historyData.length-2].close : lastPrice;
@@ -833,6 +875,7 @@
             const changePercent = (change / prevPrice * 100).toFixed(2);
             
             const trend = change > 0 ? 'рост' : 'снижение';
+            const sentiment = change > 0 ? 'bullish' : 'bearish';
             const impact = Math.abs(changePercent) > 0.5 ? 'high' : (Math.abs(changePercent) > 0.2 ? 'medium' : 'low');
             
             return [
@@ -841,12 +884,91 @@
                     time: now,
                     source: 'Реальное время',
                     title: `${trend === 'рост' ? '🟢' : '🔴'} SiH6: ${trend} на ${Math.abs(changePercent)}%`,
-                    text: `Фьючерс на доллар/рубль ${trend === 'рост' ? 'дорожает' : 'дешевеет'} на фоне текущих торгов. Текущая цена: ${lastPrice.toFixed(2)}.`,
+                    text: `Фьючерс ${trend === 'рост' ? 'дорожает' : 'дешевеет'}. Цена: ${lastPrice.toFixed(2)}.`,
                     impact: impact,
+                    sentiment: sentiment,
                     url: '#'
                 },
                 ...getMacroNews()
             ];
+        }
+
+        // Расчет влияния новостей на рынок
+        function calculateNewsInfluence(news) {
+            if (!news || news.length === 0) return { score: 0, direction: 'neutral', strength: 0 };
+            
+            let totalWeight = 0;
+            let weightedSentiment = 0;
+            
+            const impactWeights = { high: 0.4, medium: 0.25, low: 0.1 };
+            const sentimentValues = { bullish: 1, neutral: 0, bearish: -1 };
+            
+            // Берем только последние 10 новостей
+            const recentNews = news.slice(0, 10);
+            
+            recentNews.forEach(item => {
+                const weight = impactWeights[item.impact] || 0.1;
+                const sentiment = sentimentValues[item.sentiment] || 0;
+                
+                // Чем свежее новость, тем больше вес
+                const ageHours = (new Date() - item.time) / (1000 * 60 * 60);
+                const timeDecay = Math.max(0.3, 1 - (ageHours / 24)); // Макс 24 часа
+                
+                const finalWeight = weight * timeDecay;
+                totalWeight += finalWeight;
+                weightedSentiment += sentiment * finalWeight;
+            });
+            
+            if (totalWeight === 0) return { score: 0, direction: 'neutral', strength: 0 };
+            
+            const normalizedScore = weightedSentiment / totalWeight; // -1 to 1
+            const strength = Math.min(100, totalWeight * 100); // 0 to 100
+            
+            let direction = 'neutral';
+            if (normalizedScore > 0.2) direction = 'bullish';
+            else if (normalizedScore < -0.2) direction = 'bearish';
+            
+            return {
+                score: normalizedScore,
+                direction: direction,
+                strength: strength,
+                details: recentNews.map(n => ({
+                    title: n.title.substring(0, 50),
+                    impact: n.impact,
+                    sentiment: n.sentiment
+                }))
+            };
+        }
+
+        function updateNewsInfluenceIndicator(news) {
+            const influence = calculateNewsInfluence(news);
+            const indicator = document.getElementById('newsInfluence');
+            const fill = document.getElementById('influenceFill');
+            const text = document.getElementById('influenceText');
+            
+            indicator.style.display = 'flex';
+            
+            const percentage = Math.abs(influence.score) * 100;
+            fill.style.width = `${Math.min(100, percentage * 2)}%`; // Масштабируем для наглядности
+            
+            // Цвет в зависимости от направления
+            fill.className = 'influence-fill';
+            if (influence.direction === 'bullish') {
+                fill.classList.add('bullish');
+                text.innerText = `Бычий (${influence.strength.toFixed(0)}%)`;
+                text.style.color = '#3fb950';
+            } else if (influence.direction === 'bearish') {
+                fill.classList.add('bearish');
+                text.innerText = `Медвежий (${influence.strength.toFixed(0)}%)`;
+                text.style.color = '#f85149';
+            } else {
+                fill.classList.add('neutral');
+                text.innerText = `Нейтрально`;
+                text.style.color = '#8b949e';
+            }
+            
+            // Сохраняем для использования в AI анализе
+            window.currentNewsInfluence = influence;
         }
 
         function displayNews(news) {
@@ -866,9 +988,9 @@
                     <div class="news-time">
                         ${formatTime(item.time)}
                         <span class="news-source">${item.source}</span>
+                        ${item.sentiment === 'bullish' ? '🟢' : item.sentiment === 'bearish' ? '🔴' : '⚪'}
                     </div>
                     <div class="news-text">${item.title}</div>
-                    ${item.text ? `<div style="font-size: 12px; color: #8b949e; margin-top: 4px;">${item.text}</div>` : ''}
                     <span class="news-impact impact-${item.impact}">
                         ${item.impact === 'high' ? '🔴 Высокое' : item.impact === 'medium' ? '🟡 Среднее' : '🔵 Низкое'}
                     </span>
@@ -878,7 +1000,7 @@
 
         function formatTime(date) {
             const now = new Date();
-            const diff = Math.floor((now - date) / 1000 / 60); // минуты
+            const diff = Math.floor((now - date) / 1000 / 60);
             
             if (diff < 1) return 'Только что';
             if (diff < 60) return `${diff} мин назад`;
@@ -901,34 +1023,7 @@
             fetchNews();
         }
 
-        // ===== ЭКОНОМИЧЕСКИЙ КАЛЕНДАРЬ =====
-
-        async function fetchEconomicCalendar() {
-            const container = document.getElementById('economicCalendar');
-            
-            // Важные события для USD/RUB
-            const events = [
-                { time: 'Сегодня 16:30', event: 'Выступление главы ФРС', impact: 'high', country: '🇺🇸' },
-                { time: 'Завтра 12:00', event: 'Ключевая ставка ЦБ РФ', impact: 'high', country: '🇷🇺' },
-                { time: 'Завтра 15:30', event: 'Данные по инфляции США', impact: 'medium', country: '🇺🇸' },
-                { time: 'Пт 13:00', event: 'Решение ОПЕК+', impact: 'medium', country: '🌍' }
-            ];
-            
-            container.innerHTML = events.map(e => `
-                <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 11px; color: #8b949e;">${e.time}</span>
-                        <span style="font-size: 11px;">${e.country}</span>
-                    </div>
-                    <div style="margin-top: 4px; ${e.impact === 'high' ? 'color: #f85149;' : ''}">
-                        ${e.event}
-                        ${e.impact === 'high' ? ' 🔴' : ''}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // ===== ОСНОВНЫЕ ФУНКЦИИ =====
+        // ===== ОСТАЛЬНЫЕ ФУНКЦИИ =====
 
         function getFromDate(daysBack = 7) {
             const date = new Date();
@@ -1017,7 +1112,6 @@
                         updatePriceTicker(historyData);
                         updateLastUpdateTime();
                         
-                        // Обновляем новости при изменении цены
                         if (isUpdate) {
                             updateRealTimeNews();
                         }
@@ -1038,15 +1132,16 @@
         }
 
         function updateRealTimeNews() {
-            // Добавляем новость о значительном движении цены
             if (historyData.length < 2) return;
             
             const last = historyData[historyData.length-1];
             const prev = historyData[historyData.length-2];
             const change = Math.abs((last.close - prev.close) / prev.close * 100);
             
-            if (change > 0.3) { // Если изменение > 0.3%
+            if (change > 0.3) {
                 const trend = last.close > prev.close ? 'рост' : 'снижение';
+                const sentiment = last.close > prev.close ? 'bullish' : 'bearish';
+                
                 const newsItem = {
                     id: Date.now(),
                     time: new Date(),
@@ -1054,13 +1149,15 @@
                     title: `⚡ Резкое ${trend} SiH6 на ${change.toFixed(2)}%`,
                     text: `Цена изменилась с ${prev.close.toFixed(2)} до ${last.close.toFixed(2)}`,
                     impact: change > 0.5 ? 'high' : 'medium',
+                    sentiment: sentiment,
                     url: '#'
                 };
                 
                 allNews.unshift(newsItem);
-                if (allNews.length > 20) allNews.pop(); // Храним только 20 последних
+                if (allNews.length > 20) allNews.pop();
                 displayNews(allNews);
                 updateNewsCount(allNews.length);
+                updateNewsInfluenceIndicator(allNews);
             }
         }
 
@@ -1094,20 +1191,12 @@
                 },
                 crosshair: { 
                     mode: LightweightCharts.CrosshairMode.Normal,
-                    vertLine: {
-                        color: '#758696',
-                        labelBackgroundColor: '#758696',
-                    },
-                    horzLine: {
-                        color: '#758696',
-                        labelBackgroundColor: '#758696',
-                    },
+                    vertLine: { color: '#758696', labelBackgroundColor: '#758696' },
+                    horzLine: { color: '#758696', labelBackgroundColor: '#758696' },
                 },
                 width: chartContainer.clientWidth,
                 height: 400,
-                rightPriceScale: {
-                    borderColor: '#30363d',
-                },
+                rightPriceScale: { borderColor: '#30363d' },
             });
             
             candleSeries = currentChart.addCandlestickSeries({ 
@@ -1217,6 +1306,8 @@
             });
         }
 
+        // ===== КОМПЛЕКСНЫЙ АНАЛИЗ С УЧЕТОМ НОВОСТЕЙ =====
+
         async function analyzeWithAI() {
             const apiKey = document.getElementById('api_key_input').value.trim();
             if (!apiKey) {
@@ -1229,42 +1320,65 @@
             }
 
             document.getElementById('signal_text').innerText = "АНАЛИЗ...";
-            document.getElementById('ai_desc').innerText = "Анализируем данные + новости...";
+            document.getElementById('ai_desc').innerText = "Анализ: техника + новости...";
             document.getElementById('statsGrid').style.display = 'none';
 
             const lastData = historyData.slice(-50);
-            const recentNews = allNews.slice(0, 5).map(n => n.title).join('; ');
+            const recentNews = allNews.slice(0, 8);
+            
+            // Расчет влияния новостей
+            const newsInfluence = calculateNewsInfluence(allNews);
             
             const tfNames = {1: '1 минута', 10: '10 минут', 60: '1 час', 240: '4 часа', 1440: '1 день', 10080: '1 неделя'};
             const currentPrice = lastData[lastData.length - 1].close;
+            
+            const newsContext = recentNews.map(n => 
+                `[${n.impact.toUpperCase()}|${n.sentiment}] ${n.title}`
+            ).join('\n');
             
             const requestBody = {
                 model: "deepseek/deepseek-chat",
                 messages: [{
                     role: "user",
-                    content: `Ты профессиональный трейдер. Анализируй фьючерс ${TICKER} (доллар/рубль).
+                    content: `Ты профессиональный трейдер. Делаешь КОМПЛЕКСНЫЙ анализ фьючерса ${TICKER} (доллар/рубль).
 
-Данные:
+=== ТЕХНИЧЕСКИЕ ДАННЫЕ ===
 - Таймфрейм: ${tfNames[currentTf]}
 - Текущая цена: ${currentPrice}
 - Последние 30 свечей: ${JSON.stringify(lastData.slice(-30))}
 
-Новости (последние):
-${recentNews || 'Нет значимых новостей'}
+=== НОВОСТНОЙ ФОН ===
+Последние новости (ВАЖНОСТЬ|НАПРАВЛЕННОСТЬ):
+${newsContext || 'Нет значимых новостей'}
 
-Учитывая технический анализ И новостной фон, дай торговый сигнал.
+=== РАСЧЕТНОЕ ВЛИЯНИЕ НОВОСТЕЙ ===
+- Направление: ${newsInfluence.direction}
+- Сила влияния: ${newsInfluence.strength.toFixed(1)}%
+- Скорректированный вес: ${newsInfluence.score > 0 ? '+' : ''}${newsInfluence.score.toFixed(2)}
+
+=== ЗАДАЧА ===
+1. Рассчитай технические индикаторы (RSI, MACD, EMA)
+2. Определи чисто технический сигнал (без учета новостей)
+3. Оцени, как новостной фон ВЛИЯЕТ на технический сигнал:
+   - Если новости БЫЧЬИ (bullish) + технический сигнал BUY = усиление сигнала
+   - Если новости МЕДВЕЖЬИ (bearish) + технический сигнал BUY = ослабление или отмена
+   - Если новости сильно противоречат технике = приоритет новостям (high impact)
+4. Дай ИТОГОВЫЙ сигнал с учетом обоих факторов
 
 Ответь в JSON:
 {
-  "signal": "ПОКУПКА|ПРОДАЖА|ДЕРЖАТЬ",
+  "technical_signal": "ПОКУПКА|ПРОДАЖА|ДЕРЖАТЬ",
+  "news_signal": "ПОКУПКА|ПРОДАЖА|НЕЙТРАЛЬНО",
+  "final_signal": "ПОКУПКА|ПРОДАЖА|ДЕРЖАТЬ",
   "confidence": 0-100,
   "rsi": число,
   "macd": "описание",
   "ema20": число,
   "ema50": число,
   "trend": "восходящий|нисходящий|боковик",
-  "reason": "обоснование с учетом новостей",
-  "news_impact": "влияние новостей на решение"
+  "technical_reason": "обоснование теханализа",
+  "news_impact": "как новости повлияли на решение",
+  "convergence": "техника и новости совпадают|противоречат|нейтрально"
 }`
                 }]
             };
@@ -1308,15 +1422,18 @@ ${recentNews || 'Нет значимых новостей'}
             const descEl = document.getElementById('ai_desc');
             
             let result = {
-                signal: "ДЕРЖАТЬ",
+                technical_signal: "ДЕРЖАТЬ",
+                news_signal: "НЕЙТРАЛЬНО",
+                final_signal: "ДЕРЖАТЬ",
                 confidence: 50,
                 rsi: null,
                 macd: null,
                 ema20: null,
                 ema50: null,
                 trend: "неопределен",
-                reason: "",
-                news_impact: ""
+                technical_reason: "",
+                news_impact: "",
+                convergence: "нейтрально"
             };
 
             try {
@@ -1325,23 +1442,28 @@ ${recentNews || 'Нет значимых новостей'}
                     const parsed = JSON.parse(jsonMatch[0]);
                     result = { ...result, ...parsed };
                 } else {
+                    // Fallback
                     const upperAns = answer.toUpperCase();
-                    if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) result.signal = "ПОКУПКА";
-                    else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) result.signal = "ПРОДАЖА";
-                    result.reason = answer.substring(0, 200);
+                    if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) result.final_signal = "ПОКУПКА";
+                    else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) result.final_signal = "ПРОДАЖА";
+                    result.technical_reason = answer.substring(0, 200);
                 }
             } catch (e) {
                 const upperAns = answer.toUpperCase();
-                if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) result.signal = "ПОКУПКА";
-                else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) result.signal = "ПРОДАЖА";
-                result.reason = answer.substring(0, 200);
+                if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) result.final_signal = "ПОКУПКА";
+                else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) result.final_signal = "ПРОДАЖА";
+                result.technical_reason = answer.substring(0, 200);
             }
 
+            // Сохраняем результат
+            lastAnalysisResult = result;
+
+            // Отображение сигнала
             ui.className = "signal-display";
-            if (result.signal === "ПОКУПКА") {
+            if (result.final_signal === "ПОКУПКА") {
                 ui.classList.add("buy");
                 stext.innerText = "ПОКУПКА";
-            } else if (result.signal === "ПРОДАЖА") {
+            } else if (result.final_signal === "ПРОДАЖА") {
                 ui.classList.add("sell");
                 stext.innerText = "ПРОДАЖА";
             } else {
@@ -1349,11 +1471,33 @@ ${recentNews || 'Нет значимых новостей'}
                 stext.innerText = "ДЕРЖАТЬ";
             }
 
-            let descText = result.reason || answer.substring(0, 300);
-            if (result.news_impact) descText += `\n\n📰 Влияние новостей: ${result.news_impact}`;
-            if (result.confidence) descText = `Уверенность: ${result.confidence}%\n` + descText;
+            // Формирование описания
+            let descText = "";
+            
+            if (result.convergence) {
+                const convEmoji = result.convergence === 'совпадают' ? '✅' : 
+                                 result.convergence === 'противоречат' ? '⚠️' : '➖';
+                descText += `${convEmoji} Сходство: ${result.convergence}\n\n`;
+            }
+            
+            descText += `📊 Техника: ${result.technical_signal}\n`;
+            descText += `📰 Новости: ${result.news_signal}\n`;
+            
+            if (result.technical_reason) {
+                descText += `\n📝 ${result.technical_reason}`;
+            }
+            
+            if (result.news_impact) {
+                descText += `\n\n📡 Влияние новостей: ${result.news_impact}`;
+            }
+            
+            if (result.confidence) {
+                descText = `🎯 Уверенность: ${result.confidence}%\n` + descText;
+            }
+            
             descEl.innerText = descText;
 
+            // Статистика
             if (result.rsi || result.macd) {
                 document.getElementById('statsGrid').style.display = 'grid';
                 document.getElementById('statRsi').innerText = result.rsi ? result.rsi.toFixed(2) : '-';
@@ -1457,14 +1601,12 @@ ${recentNews || 'Нет значимых новостей'}
             
             initTimeframeButtons();
             fetchMoexData(60, false);
-            fetchNews(); // Загружаем новости
-            fetchEconomicCalendar(); // Загружаем календарь
+            fetchNews();
             
             if (document.getElementById('autoUpdateCheck').checked) {
                 startAutoUpdate();
             }
             
-            // Обновляем новости каждые 5 минут
             setInterval(fetchNews, 300000);
         });
     </script>
