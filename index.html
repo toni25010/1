@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Анализ Si-3.26</title>
+    <style>
+        body { font-family: sans-serif; background: #131722; color: white; margin: 20px; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .chart-box { flex: 2; min-width: 600px; height: 600px; }
+        .manual-input { flex: 1; min-width: 300px; background: #1e222d; padding: 20px; border-radius: 8px; }
+        textarea { width: 100%; height: 150px; margin-top: 10px; background: #2a2e39; color: white; border: 1px solid #363c4e; padding: 10px; }
+        button { background: #2962ff; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; margin-top: 10px; }
+        h2 { margin-top: 0; color: #d1d4dc; }
+    </style>
+</head>
+<body>
+
+    <h1>Технический анализ Si-3.26 (Фьючерс USD/RUB)</h1>
+
+    <div class="container">
+        <!-- Виджет графика TradingView -->
+        <div class="chart-box">
+            <div id="tradingview_chart"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com"></script>
+            <script type="text/javascript">
+                new TradingView.widget({
+                    "autosize": true,
+                    "symbol": "MOEX:SI1!", // Склейка фьючерса Si
+                    "interval": "D",
+                    "timezone": "Europe/Moscow",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "ru",
+                    "toolbar_bg": "#f1f3f6",
+                    "enable_publishing": false,
+                    "allow_symbol_change": true,
+                    "container_id": "tradingview_chart"
+                });
+            </script>
+        </div>
+
+        <!-- Ручной ввод новостного фона -->
+        <div class="manual-input">
+            <h2>Новостной фон и заметки</h2>
+            <label>Текущий тренд:</label>
+            <select id="trend" style="width: 100%; padding: 5px; margin-bottom: 15px;">
+                <option value="up">Восходящий (Long)</option>
+                <option value="down">Нисходящий (Short)</option>
+                <option value="flat">Боковик (Flat)</option>
+            </select>
+
+            <label>Важные новости/события:</label>
+            <textarea id="newsInput" placeholder="Введите ключевые новости дня (ЦБ, нефть, санкции...)"></textarea>
+            
+            <button onclick="saveAnalysis()">Сохранить анализ</button>
+            
+            <div id="savedStatus" style="margin-top: 15px; font-size: 0.9em; color: #00ff00;"></div>
+        </div>
+    </div>
+
+    <script>
+        function saveAnalysis() {
+            const news = document.getElementById('newsInput').value;
+            const trend = document.getElementById('trend').value;
+            const date = new Date().toLocaleString();
+            
+            // Сохраняем в локальное хранилище браузера
+            const analysis = { date, trend, news };
+            localStorage.setItem('si_analysis', JSON.stringify(analysis));
+            
+            document.getElementById('savedStatus').innerText = "Данные сохранены локально: " + date;
+        }
+
+        // Загрузка данных при открытии
+        window.onload = function() {
+            const saved = localStorage.getItem('si_analysis');
+            if (saved) {
+                const data = JSON.parse(saved);
+                document.getElementById('newsInput').value = data.news;
+                document.getElementById('trend').value = data.trend;
+            }
+        };
+    </script>
+</body>
+</html>
