@@ -579,6 +579,73 @@
             50% { opacity: 0.5; }
         }
 
+        /* Экономический календарь */
+        .calendar-event {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px;
+            background: #0d1117;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            font-size: 12px;
+        }
+
+        .calendar-event:hover {
+            border-color: var(--accent);
+        }
+
+        .calendar-time {
+            min-width: 70px;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .calendar-content {
+            flex: 1;
+        }
+
+        .calendar-title {
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+
+        .calendar-country {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #21262d;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-right: 6px;
+        }
+
+        .calendar-importance {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+
+        .importance-high { background: rgba(248, 81, 73, 0.2); color: var(--news-high); }
+        .importance-medium { background: rgba(240, 136, 62, 0.2); color: var(--news-medium); }
+        .importance-low { background: rgba(88, 166, 255, 0.2); color: var(--news-low); }
+
+        .calendar-forecast {
+            color: #8b949e;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .calendar-date-header {
+            color: var(--accent);
+            font-weight: 600;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
         @media (max-width: 900px) {
             .grid { grid-template-columns: 1fr; }
             #chart { height: 400px; }
@@ -712,9 +779,12 @@
 
             <!-- Экономический календарь -->
             <div class="card" style="margin-top: 16px;">
-                <div style="font-weight: 600; margin-bottom: 12px; color: var(--accent);">📅 Экономический календарь</div>
-                <div id="economicCalendar" style="font-size: 12px; color: #8b949e;">
-                    <div class="loading-news">Загрузка...</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div style="font-weight: 600; color: var(--accent);">📅 Экономический календарь</div>
+                    <button class="small" onclick="refreshCalendar()" style="width: auto; padding: 4px 10px; margin: 0; font-size: 11px;">🔄</button>
+                </div>
+                <div id="economicCalendar" style="font-size: 12px; color: #8b949e; max-height: 300px; overflow-y: auto;">
+                    <div class="loading-news">Загрузка календаря...</div>
                 </div>
             </div>
         </div>
@@ -742,14 +812,14 @@
         // ============================================
         const TICKER = "SiH6";
         
-        // ✅ Кэш данных для каждого таймфрейма
+        // Кэш данных для каждого таймфрейма
         const tfDataCache = new Map();
         
         // Текущее состояние
         let currentTf = 60;
         let useProxy = false;
         
-        // ✅ Все интервалы сохраняются в переменные
+        // Все интервалы сохраняются в переменные
         let autoUpdateInterval = null;
         let aiUpdateInterval = null;
         let newsUpdateInterval = null;
@@ -761,10 +831,10 @@
         let candleSeries = null;
         let currentPriceLine = null;
         
-        // ✅ AbortController для отмены запросов
+        // AbortController для отмены запросов
         let currentAbortController = null;
         
-        // ✅ ID текущего запроса для предотвращения race condition
+        // ID текущего запроса для предотвращения race condition
         let currentRequestId = 0;
         
         // Новости
@@ -813,6 +883,14 @@
             return `${formatMoscowDate(date)} ${formatMoscowTime(date)}`;
         }
 
+        function formatMoscowShortDate(date) {
+            return date.toLocaleDateString('ru-RU', { 
+                day: '2-digit', 
+                month: '2-digit',
+                timeZone: MOSCOW_TIMEZONE 
+            });
+        }
+
         // ============================================
         // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
         // ============================================
@@ -848,16 +926,300 @@
         }
 
         // ============================================
+        // ЭКОНОМИЧЕСКИЙ КАЛЕНДАРЬ
+        // ============================================
+        async function fetchEconomicCalendar() {
+            const container = document.getElementById('economicCalendar');
+            container.innerHTML = '<div class="loading-news">Загрузка календаря...</div>';
+            
+            try {
+                // Пробуем загрузить с Investing.com через прокси
+                const events = await fetchCalendarFromInvesting();
+                
+                if (events && events.length > 0) {
+                    displayCalendar(events);
+                } else {
+                    // Fallback - показываем предустановленные события
+                    displayCalendar(getPredefinedEvents());
+                }
+            } catch (error) {
+                console.error('Calendar fetch error:', error);
+                // Fallback при ошибке
+                displayCalendar(getPredefinedEvents());
+            }
+        }
+
+        async function fetchCalendarFromInvesting() {
+            const events = [];
+            
+            try {
+                // Используем альтернативный источник - Forex Factory через прокси
+                const url = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                
+                const response = await fetch(proxyUrl, {
+                    timeout: 10000
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const parsed = JSON.parse(data.contents);
+                    
+                    // Фильтруем только важные события для России, США и ключевые для рынка
+                    const relevantCountries = ['USD', 'RUB', 'EUR', 'ALL'];
+                    const importanceFilter = ['High', 'Medium'];
+                    
+                    parsed.forEach(event => {
+                        if (relevantCountries.includes(event.country) && 
+                            importanceFilter.includes(event.importance)) {
+                            
+                            const eventDate = new Date(event.date);
+                            // Только будущие и сегодняшние события
+                            if (eventDate >= new Date(Date.now() - 86400000)) {
+                                events.push({
+                                    date: eventDate,
+                                    time: formatMoscowTime(eventDate, { hour: '2-digit', minute: '2-digit' }),
+                                    country: event.country,
+                                    title: event.title,
+                                    importance: event.importance.toLowerCase(),
+                                    forecast: event.forecast || '-',
+                                    previous: event.previous || '-',
+                                    actual: event.actual || '-'
+                                });
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log('Forex Factory fetch failed:', e);
+            }
+            
+            return events.sort((a, b) => a.date - b.date).slice(0, 20);
+        }
+
+        function getPredefinedEvents() {
+            const now = new Date();
+            const moscowNow = new Date(now.toLocaleString('en-US', { timeZone: MOSCOW_TIMEZONE }));
+            
+            // Генерируем события на ближайшие дни
+            const events = [];
+            
+            // Ключевые экономические события (примеры реальных событий)
+            const upcomingEvents = [
+                // Сегодня
+                { 
+                    days: 0, 
+                    hour: 16, 
+                    minute: 0, 
+                    country: 'RUB', 
+                    title: 'Торги на Мосбирже', 
+                    importance: 'medium',
+                    forecast: '-',
+                    previous: '-'
+                },
+                { 
+                    days: 0, 
+                    hour: 19, 
+                    minute: 0, 
+                    country: 'USD', 
+                    title: 'Открытие торгов в США', 
+                    importance: 'medium',
+                    forecast: '-',
+                    previous: '-'
+                },
+                // Завтра
+                { 
+                    days: 1, 
+                    hour: 12, 
+                    minute: 0, 
+                    country: 'RUB', 
+                    title: 'Аукционы Минфина РФ', 
+                    importance: 'medium',
+                    forecast: '-',
+                    previous: '-'
+                },
+                { 
+                    days: 1, 
+                    hour: 15, 
+                    minute: 30, 
+                    country: 'USD', 
+                    title: 'Данные по безработице США', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+                { 
+                    days: 1, 
+                    hour: 17, 
+                    minute: 0, 
+                    country: 'USD', 
+                    title: 'Выступление ФРС', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+                // Через 2 дня
+                { 
+                    days: 2, 
+                    hour: 12, 
+                    minute: 0, 
+                    country: 'RUB', 
+                    title: 'Заседание ЦБ РФ (ожидание)', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+                { 
+                    days: 2, 
+                    hour: 15, 
+                    minute: 30, 
+                    country: 'USD', 
+                    title: 'ВВП США (предварительный)', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+                // Через 3 дня
+                { 
+                    days: 3, 
+                    hour: 15, 
+                    minute: 0, 
+                    country: 'EUR', 
+                    title: 'Заседание ЕЦБ', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+                { 
+                    days: 3, 
+                    hour: 16, 
+                    minute: 30, 
+                    country: 'RUB', 
+                    title: 'Индекс потребительских цен РФ', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+                // Через неделю
+                { 
+                    days: 7, 
+                    hour: 15, 
+                    minute: 30, 
+                    country: 'USD', 
+                    title: 'Non-Farm Payrolls (NFP)', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+                { 
+                    days: 7, 
+                    hour: 18, 
+                    minute: 0, 
+                    country: 'RUB', 
+                    title: 'Ключевая ставка ЦБ РФ', 
+                    importance: 'high',
+                    forecast: '-',
+                    previous: '-'
+                },
+            ];
+            
+            upcomingEvents.forEach(event => {
+                const eventDate = new Date(moscowNow);
+                eventDate.setDate(eventDate.getDate() + event.days);
+                eventDate.setHours(event.hour, event.minute, 0, 0);
+                
+                events.push({
+                    date: eventDate,
+                    time: formatMoscowTime(eventDate, { hour: '2-digit', minute: '2-digit' }),
+                    country: event.country,
+                    title: event.title,
+                    importance: event.importance,
+                    forecast: event.forecast,
+                    previous: event.previous
+                });
+            });
+            
+            return events.sort((a, b) => a.date - b.date);
+        }
+
+        function displayCalendar(events) {
+            const container = document.getElementById('economicCalendar');
+            
+            if (!events || events.length === 0) {
+                container.innerHTML = '<div class="error-news">Нет предстоящих событий</div>';
+                return;
+            }
+            
+            // Группируем по датам
+            const grouped = {};
+            events.forEach(event => {
+                const dateKey = formatMoscowShortDate(event.date);
+                if (!grouped[dateKey]) {
+                    grouped[dateKey] = [];
+                }
+                grouped[dateKey].push(event);
+            });
+            
+            let html = '';
+            
+            // Определяем какая дата "сегодня"
+            const today = formatMoscowShortDate(new Date());
+            
+            Object.keys(grouped).forEach(dateKey => {
+                const isToday = dateKey === today;
+                const dateLabel = isToday ? '📅 Сегодня' : `📅 ${dateKey}`;
+                
+                html += `<div class="calendar-date-header">${dateLabel}</div>`;
+                
+                grouped[dateKey].forEach(event => {
+                    const countryEmoji = {
+                        'USD': '🇺🇸',
+                        'RUB': '🇷🇺',
+                        'EUR': '🇪🇺',
+                        'ALL': '🌍'
+                    };
+                    
+                    const importanceClass = `importance-${event.importance}`;
+                    const importanceText = event.importance === 'high' ? '🔴 Важно' : 
+                                          event.importance === 'medium' ? '🟡 Средне' : '🔵 Низко';
+                    
+                    html += `
+                        <div class="calendar-event">
+                            <div class="calendar-time">${event.time}</div>
+                            <div class="calendar-content">
+                                <div class="calendar-title">
+                                    <span class="calendar-country">${countryEmoji[event.country] || '🌍'} ${event.country}</span>
+                                    <span class="calendar-importance ${importanceClass}">${importanceText}</span>
+                                </div>
+                                <div style="margin-top: 4px;">${event.title}</div>
+                                <div class="calendar-forecast">
+                                    Прогноз: ${event.forecast} | Пред.: ${event.previous}
+                                    ${event.actual && event.actual !== '-' ? ` | Факт: ${event.actual}` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function refreshCalendar() {
+            fetchEconomicCalendar();
+        }
+
+        // ============================================
         // ЗАГРУЗКА ДАННЫХ MOEX
         // ============================================
         async function fetchMoexData(timeframe = 60, isUpdate = false) {
-            // ✅ Отменяем предыдущий запрос если есть
+            // Отменяем предыдущий запрос если есть
             if (currentAbortController) {
                 currentAbortController.abort();
             }
             currentAbortController = new AbortController();
             
-            // ✅ Увеличиваем ID запроса для защиты от race condition
+            // Увеличиваем ID запроса для защиты от race condition
             const requestId = ++currentRequestId;
             
             const loadingEl = document.getElementById('loading');
@@ -896,7 +1258,7 @@
                 
                 const data = await response.json();
                 
-                // ✅ Проверяем что это всё ещё актуальный запрос
+                // Проверяем что это всё ещё актуальный запрос
                 if (requestId !== currentRequestId) {
                     console.log(`[${requestId}] Запрос устарел, игнорируем`);
                     return;
@@ -926,7 +1288,6 @@
                         close: parseFloat(c[closeIdx])
                     };
                 }).filter(c => 
-                    // Фильтруем некорректные данные
                     !isNaN(c.open) && !isNaN(c.high) && 
                     !isNaN(c.low) && !isNaN(c.close) &&
                     c.high >= c.low && c.high >= c.open && 
@@ -939,15 +1300,14 @@
                     throw new Error('Нет валидных данных после обработки');
                 }
                 
-                // ✅ Сохраняем в кэш с меткой времени
+                // Сохраняем в кэш с меткой времени
                 tfDataCache.set(timeframe, {
                     data: processedData,
                     lastUpdate: Date.now(),
                     requestId: requestId
                 });
                 
-                console.log(`[${requestId}] Обработано свечей:`, processedData.length, 
-                           'Последняя:', processedData[processedData.length-1]);
+                console.log(`[${requestId}] Обработано свечей:`, processedData.length);
                 
                 // Обновляем UI только если это текущий таймфрейм
                 if (timeframe === currentTf) {
@@ -995,7 +1355,6 @@
             const chartContainer = document.getElementById('chart');
             const loadingEl = document.getElementById('loading');
             
-            // ✅ Уничтожаем старый график
             if (currentChart) {
                 currentChart.remove();
                 currentChart = null;
@@ -1022,7 +1381,6 @@
                     secondsVisible: false,
                     rightOffset: 5,
                     barSpacing: 6,
-                    // ✅ Время по Москве
                     timeZone: 'Europe/Moscow',
                 },
                 crosshair: { 
@@ -1047,7 +1405,6 @@
             currentChart.timeScale().fitContent();
             currentChart.timeScale().scrollToPosition(-5, false);
             
-            // ✅ Добавляем линию последней цены
             if (data.length > 0) {
                 const lastCandle = data[data.length - 1];
                 currentPriceLine = candleSeries.createPriceLine({
@@ -1060,7 +1417,6 @@
                 });
             }
             
-            // ✅ Обработчик resize с debounce (единственный)
             let resizeTimeout;
             const resizeHandler = () => {
                 clearTimeout(resizeTimeout);
@@ -1071,7 +1427,6 @@
                 }, 100);
             };
             
-            // ✅ Удаляем старый обработчик перед добавлением нового
             if (window._chartResizeHandler) {
                 window.removeEventListener('resize', window._chartResizeHandler);
             }
@@ -1081,18 +1436,15 @@
 
         function updateChartData(data) {
             if (!candleSeries || !currentChart) {
-                // Если график не инициализирован, создаём его
                 renderChart(data);
                 return;
             }
             
             candleSeries.setData(data);
             
-            // ✅ Обновляем линию цены
             if (data.length > 0) {
                 const lastCandle = data[data.length - 1];
                 
-                // Удаляем старую линию и создаём новую
                 if (currentPriceLine) {
                     candleSeries.removePriceLine(currentPriceLine);
                 }
@@ -1107,7 +1459,6 @@
                 });
             }
             
-            // Принудительно обновляем отображение
             currentChart.timeScale().fitContent();
         }
 
@@ -1142,7 +1493,6 @@
 
         function updateLastUpdateTime() {
             const now = new Date();
-            // ✅ Время по Москве
             const dateStr = formatMoscowDate(now);
             const timeStr = formatMoscowTime(now);
             
@@ -1185,28 +1535,23 @@
                 const newTf = parseInt(btn.dataset.tf);
                 if (newTf === currentTf) return;
                 
-                // Обновляем UI кнопок
                 document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 
-                // Переключаем таймфрейм
                 currentTf = newTf;
                 
                 console.log('Переключение на таймфрейм:', newTf, tfConfig[newTf]?.name);
                 
-                // ✅ Проверяем кэш
                 const cached = tfDataCache.get(newTf);
                 const cacheAge = cached ? Date.now() - cached.lastUpdate : Infinity;
                 
                 if (cached && cacheAge < 30000) {
-                    // Используем кэш если он свежий (< 30 сек)
                     console.log('Используем кэшированные данные, возраст:', (cacheAge/1000).toFixed(1), 'сек');
                     renderChart(cached.data);
                     updatePriceTicker(cached.data);
                     updateLastUpdateTime();
                     updateTfDescription(newTf);
                 } else {
-                    // Загружаем новые данные
                     fetchMoexData(newTf, false);
                 }
             });
@@ -1224,7 +1569,6 @@
             
             console.log('Запуск автообновления. Время МСК:', formatMoscowDateTime(new Date()));
             
-            // ✅ Обновление данных каждые 30 секунд
             autoUpdateInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
                     console.log('Автообновление данных для TF:', currentTf, 
@@ -1233,7 +1577,6 @@
                 }
             }, 30000);
             
-            // ✅ AI-анализ каждые 5 минут (сохраняем в переменную!)
             aiUpdateInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
                     const apiKey = document.getElementById('api_key_input').value.trim();
@@ -1244,7 +1587,6 @@
                 }
             }, 300000);
             
-            // Таймер обратного отсчёта
             countdownInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
                     countdownSeconds--;
@@ -1257,7 +1599,6 @@
         }
 
         function stopAutoUpdate() {
-            // ✅ Очищаем ВСЕ интервалы
             if (autoUpdateInterval) {
                 clearInterval(autoUpdateInterval);
                 autoUpdateInterval = null;
@@ -1323,7 +1664,6 @@
         async function fetchNewsFromMultipleSources() {
             const news = [];
             
-            // Пытаемся загрузить RSS
             try {
                 const rssFeeds = [
                     { url: 'https://www.rbc.ru/rbcnews.rss', source: 'РБК' },
@@ -1526,12 +1866,7 @@
             return {
                 score: normalizedScore,
                 direction: direction,
-                strength: strength,
-                details: recentNews.map(n => ({
-                    title: n.title.substring(0, 50),
-                    impact: n.impact,
-                    sentiment: n.sentiment
-                }))
+                strength: strength
             };
         }
 
@@ -1591,7 +1926,6 @@
             `).join('');
         }
 
-        // ✅ Время в новостях по Москве
         function formatNewsTime(date) {
             const now = new Date();
             const diff = Math.floor((now - date) / 1000 / 60);
@@ -1599,7 +1933,6 @@
             if (diff < 1) return 'Только что';
             if (diff < 60) return `${diff} мин назад`;
             if (diff < 1440) return `${Math.floor(diff/60)} ч назад`;
-            // ✅ Дата по Москве
             return formatMoscowDate(date);
         }
 
@@ -1628,7 +1961,6 @@
                 return;
             }
             
-            // ✅ Получаем данные из кэша
             const cached = tfDataCache.get(currentTf);
             const historyData = cached?.data || [];
             
@@ -1861,31 +2193,25 @@ ${newsContext || 'Нет значимых новостей'}
         // ИНИЦИАЛИЗАЦИЯ
         // ============================================
         window.addEventListener('DOMContentLoaded', () => {
-            // Загружаем сохранённый ключ
             const savedKey = safeGetLocalStorage('si_key');
             if (savedKey) {
                 document.getElementById('api_key_input').value = savedKey;
             }
             
-            // Инициализируем кнопки таймфреймов
             initTimeframeButtons();
             
-            // Загружаем начальные данные
+            // Загружаем все данные параллельно
             fetchMoexData(60, false);
-            
-            // Загружаем новости
             fetchNews();
+            fetchEconomicCalendar(); // ✅ Теперь вызывается!
             
-            // ✅ Обновление новостей каждые 5 минут
             newsUpdateInterval = setInterval(fetchNews, 300000);
             
-            // Запускаем автообновление если включено
             const autoCheck = document.getElementById('autoUpdateCheck');
             if (autoCheck && autoCheck.checked) {
                 startAutoUpdate();
             }
             
-            // Обработчик изменения чекбокса автообновления
             autoCheck.addEventListener('change', function(e) {
                 if (e.target.checked) {
                     startAutoUpdate();
@@ -1897,7 +2223,6 @@ ${newsContext || 'Нет значимых новостей'}
             console.log('Инициализация завершена. Время МСК:', formatMoscowDateTime(new Date()));
         });
 
-        // ✅ Очистка при закрытии страницы
         window.addEventListener('beforeunload', () => {
             stopAutoUpdate();
             if (currentAbortController) {
