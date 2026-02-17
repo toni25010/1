@@ -556,6 +556,29 @@
             font-size: 13px;
         }
 
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.active {
+            background: #3fb950;
+        }
+
+        .status-indicator.inactive {
+            background: #8b949e;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
         @media (max-width: 900px) {
             .grid { grid-template-columns: 1fr; }
             #chart { height: 400px; }
@@ -593,7 +616,10 @@
             <div id="chart" style="height: 400px;">
                 <div id="loading">Загрузка данных MOEX...</div>
             </div>
-            <div class="last-update" id="lastUpdate">Последнее обновление: -</div>
+            <div class="last-update" id="lastUpdate">
+                <span class="status-indicator inactive" id="statusIndicator"></span>
+                Последнее обновление: -
+            </div>
 
             <!-- Индикатор влияния новостей -->
             <div class="news-influence-indicator" id="newsInfluence" style="display: none;">
@@ -664,7 +690,9 @@
 
                 <div class="auto-update-row">
                     <label class="auto-update-label">
-                        <input type="checkbox" id="autoUpdateCheck" checked> 🔄 Автообновление (30 сек)
+                        <input type="checkbox" id="autoUpdateCheck" checked> 
+                        <span class="status-indicator active" id="autoStatus"></span>
+                        Автообновление (30 сек)
                     </label>
                     <span class="timer" id="timerDisplay">00:30</span>
                 </div>
@@ -709,31 +737,568 @@
     </div>
 
     <script>
+        // ============================================
+        // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+        // ============================================
         const TICKER = "SiH6";
-        let historyData = [];
+        
+        // ✅ Кэш данных для каждого таймфрейма
+        const tfDataCache = new Map();
+        
+        // Текущее состояние
         let currentTf = 60;
         let useProxy = false;
+        
+        // ✅ Все интервалы сохраняются в переменные
         let autoUpdateInterval = null;
+        let aiUpdateInterval = null;
+        let newsUpdateInterval = null;
         let countdownInterval = null;
         let countdownSeconds = 30;
+        
+        // График
         let currentChart = null;
         let candleSeries = null;
-        let lastCandleTime = 0;
+        let currentPriceLine = null;
+        
+        // ✅ AbortController для отмены запросов
+        let currentAbortController = null;
+        
+        // ✅ ID текущего запроса для предотвращения race condition
+        let currentRequestId = 0;
+        
+        // Новости
         let allNews = [];
         let currentNewsFilter = 'all';
         let lastAnalysisResult = null;
 
-        const tfMap = {
-            1: 1,
-            10: 10,
-            60: 60,
-            240: 24,
-            1440: 'D',
-            10080: 'W'
+        // ============================================
+        // КОНФИГУРАЦИЯ ТАЙМФРЕЙМОВ
+        // ============================================
+        const tfConfig = {
+            1: { interval: 1, daysBack: 2, name: '1 минута' },
+            10: { interval: 10, daysBack: 5, name: '10 минут' },
+            60: { interval: 60, daysBack: 30, name: '1 час' },
+            240: { interval: 24, daysBack: 90, name: '4 часа' },
+            1440: { interval: 'D', daysBack: 365, name: '1 день' },
+            10080: { interval: 'W', daysBack: 730, name: '1 неделя' }
         };
 
-        // ===== НОВОСТИ И АНАЛИЗ ВЛИЯНИЯ =====
+        // ============================================
+        // ФОРМАТИРОВАНИЕ ВРЕМЕНИ ПО МОСКВЕ
+        // ============================================
+        const MOSCOW_TIMEZONE = 'Europe/Moscow';
 
+        function formatMoscowTime(date, options = {}) {
+            const defaultOptions = {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZone: MOSCOW_TIMEZONE
+            };
+            return date.toLocaleTimeString('ru-RU', { ...defaultOptions, ...options });
+        }
+
+        function formatMoscowDate(date, options = {}) {
+            const defaultOptions = {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                timeZone: MOSCOW_TIMEZONE
+            };
+            return date.toLocaleDateString('ru-RU', { ...defaultOptions, ...options });
+        }
+
+        function formatMoscowDateTime(date) {
+            return `${formatMoscowDate(date)} ${formatMoscowTime(date)}`;
+        }
+
+        // ============================================
+        // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // ============================================
+        function getFromDate(daysBack) {
+            const date = new Date();
+            date.setDate(date.getDate() - daysBack);
+            return date.toISOString().split('T')[0];
+        }
+
+        function getTillDate() {
+            const date = new Date();
+            date.setDate(date.getDate() + 1);
+            return date.toISOString().split('T')[0];
+        }
+
+        function safeGetLocalStorage(key) {
+            try {
+                return localStorage.getItem(key);
+            } catch (e) {
+                console.warn('localStorage недоступен:', e);
+                return null;
+            }
+        }
+
+        function safeSetLocalStorage(key, value) {
+            try {
+                localStorage.setItem(key, value);
+                return true;
+            } catch (e) {
+                console.warn('localStorage недоступен:', e);
+                return false;
+            }
+        }
+
+        // ============================================
+        // ЗАГРУЗКА ДАННЫХ MOEX
+        // ============================================
+        async function fetchMoexData(timeframe = 60, isUpdate = false) {
+            // ✅ Отменяем предыдущий запрос если есть
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
+            currentAbortController = new AbortController();
+            
+            // ✅ Увеличиваем ID запроса для защиты от race condition
+            const requestId = ++currentRequestId;
+            
+            const loadingEl = document.getElementById('loading');
+            const config = tfConfig[timeframe];
+            
+            if (!config) {
+                loadingEl.innerHTML = '❌ Неподдерживаемый таймфрейм';
+                return;
+            }
+
+            if (!isUpdate) {
+                loadingEl.style.display = 'block';
+                loadingEl.innerText = 'Загрузка данных MOEX...';
+            }
+
+            const { interval, daysBack } = config;
+            const fromDate = getFromDate(daysBack);
+            const tillDate = getTillDate();
+
+            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=${interval}&from=${fromDate}&till=${tillDate}`;
+
+            console.log(`[${requestId}] Загрузка данных:`, { 
+                timeframe, 
+                interval, 
+                fromDate, 
+                tillDate,
+                moscowTime: formatMoscowDateTime(new Date())
+            });
+
+            try {
+                const response = await fetch(url, {
+                    signal: currentAbortController.signal
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                
+                // ✅ Проверяем что это всё ещё актуальный запрос
+                if (requestId !== currentRequestId) {
+                    console.log(`[${requestId}] Запрос устарел, игнорируем`);
+                    return;
+                }
+                
+                console.log(`[${requestId}] Получены данные:`, data.candles?.data?.length || 0, 'свечей');
+                
+                if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
+                    throw new Error(`Нет данных для таймфрейма ${config.name}. Возможно, сегодня не торговый день.`);
+                }
+                
+                const columns = data.candles.columns;
+                const openIdx = columns.indexOf('open');
+                const closeIdx = columns.indexOf('close');
+                const highIdx = columns.indexOf('high');
+                const lowIdx = columns.indexOf('low');
+                const beginIdx = columns.indexOf('begin');
+                
+                const processedData = data.candles.data.map(c => {
+                    const dateStr = c[beginIdx];
+                    const timestamp = Math.floor(new Date(dateStr).getTime() / 1000);
+                    return {
+                        time: timestamp,
+                        open: parseFloat(c[openIdx]),
+                        high: parseFloat(c[highIdx]),
+                        low: parseFloat(c[lowIdx]),
+                        close: parseFloat(c[closeIdx])
+                    };
+                }).filter(c => 
+                    // Фильтруем некорректные данные
+                    !isNaN(c.open) && !isNaN(c.high) && 
+                    !isNaN(c.low) && !isNaN(c.close) &&
+                    c.high >= c.low && c.high >= c.open && 
+                    c.high >= c.close && c.low <= c.open && c.low <= c.close
+                );
+
+                processedData.sort((a, b) => a.time - b.time);
+                
+                if (processedData.length === 0) {
+                    throw new Error('Нет валидных данных после обработки');
+                }
+                
+                // ✅ Сохраняем в кэш с меткой времени
+                tfDataCache.set(timeframe, {
+                    data: processedData,
+                    lastUpdate: Date.now(),
+                    requestId: requestId
+                });
+                
+                console.log(`[${requestId}] Обработано свечей:`, processedData.length, 
+                           'Последняя:', processedData[processedData.length-1]);
+                
+                // Обновляем UI только если это текущий таймфрейм
+                if (timeframe === currentTf) {
+                    if (!isUpdate) {
+                        renderChart(processedData);
+                    } else {
+                        updateChartData(processedData);
+                    }
+                    
+                    updatePriceTicker(processedData);
+                    updateLastUpdateTime();
+                    
+                    if (isUpdate) {
+                        updateRealTimeNews(processedData);
+                    }
+                }
+                
+                if (!isUpdate) {
+                    loadingEl.style.display = 'none';
+                    updateTfDescription(timeframe);
+                }
+                
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    console.log(`[${requestId}] Запрос отменён`);
+                    return;
+                }
+                
+                console.error(`[${requestId}] MOEX Error:`, err);
+                if (!isUpdate && timeframe === currentTf) {
+                    loadingEl.innerHTML = `❌ Ошибка: ${err.message}`;
+                }
+            }
+        }
+
+        // ============================================
+        // РЕНДЕРИНГ ГРАФИКА
+        // ============================================
+        function renderChart(data) {
+            if (typeof LightweightCharts === 'undefined') {
+                document.getElementById('loading').innerHTML = '❌ Библиотека графиков не загрузилась';
+                return;
+            }
+            
+            const chartContainer = document.getElementById('chart');
+            const loadingEl = document.getElementById('loading');
+            
+            // ✅ Уничтожаем старый график
+            if (currentChart) {
+                currentChart.remove();
+                currentChart = null;
+                candleSeries = null;
+                currentPriceLine = null;
+            }
+            
+            chartContainer.innerHTML = '';
+            chartContainer.appendChild(loadingEl);
+            
+            currentChart = LightweightCharts.createChart(chartContainer, {
+                layout: { 
+                    background: { color: '#161b22' }, 
+                    textColor: '#d1d4dc',
+                    fontSize: 12,
+                },
+                grid: { 
+                    vertLines: { color: '#30363d' }, 
+                    horzLines: { color: '#30363d' } 
+                },
+                timeScale: { 
+                    borderColor: '#30363d',
+                    timeVisible: true,
+                    secondsVisible: false,
+                    rightOffset: 5,
+                    barSpacing: 6,
+                    // ✅ Время по Москве
+                    timeZone: 'Europe/Moscow',
+                },
+                crosshair: { 
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: { color: '#758696', labelBackgroundColor: '#758696' },
+                    horzLine: { color: '#758696', labelBackgroundColor: '#758696' },
+                },
+                width: chartContainer.clientWidth,
+                height: 400,
+                rightPriceScale: { borderColor: '#30363d' },
+            });
+            
+            candleSeries = currentChart.addCandlestickSeries({ 
+                upColor: '#238636', 
+                downColor: '#f85149', 
+                borderVisible: false, 
+                wickVisible: true,
+                priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+            });
+            
+            candleSeries.setData(data);
+            currentChart.timeScale().fitContent();
+            currentChart.timeScale().scrollToPosition(-5, false);
+            
+            // ✅ Добавляем линию последней цены
+            if (data.length > 0) {
+                const lastCandle = data[data.length - 1];
+                currentPriceLine = candleSeries.createPriceLine({
+                    price: lastCandle.close,
+                    color: '#8957e5',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: 'Last',
+                });
+            }
+            
+            // ✅ Обработчик resize с debounce (единственный)
+            let resizeTimeout;
+            const resizeHandler = () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    if (currentChart && chartContainer.isConnected) {
+                        currentChart.applyOptions({ width: chartContainer.clientWidth });
+                    }
+                }, 100);
+            };
+            
+            // ✅ Удаляем старый обработчик перед добавлением нового
+            if (window._chartResizeHandler) {
+                window.removeEventListener('resize', window._chartResizeHandler);
+            }
+            window._chartResizeHandler = resizeHandler;
+            window.addEventListener('resize', resizeHandler);
+        }
+
+        function updateChartData(data) {
+            if (!candleSeries || !currentChart) {
+                // Если график не инициализирован, создаём его
+                renderChart(data);
+                return;
+            }
+            
+            candleSeries.setData(data);
+            
+            // ✅ Обновляем линию цены
+            if (data.length > 0) {
+                const lastCandle = data[data.length - 1];
+                
+                // Удаляем старую линию и создаём новую
+                if (currentPriceLine) {
+                    candleSeries.removePriceLine(currentPriceLine);
+                }
+                
+                currentPriceLine = candleSeries.createPriceLine({
+                    price: lastCandle.close,
+                    color: '#8957e5',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: 'Last',
+                });
+            }
+            
+            // Принудительно обновляем отображение
+            currentChart.timeScale().fitContent();
+        }
+
+        // ============================================
+        // ОБНОВЛЕНИЕ UI
+        // ============================================
+        function updatePriceTicker(data) {
+            if (!data || data.length < 2) return;
+            
+            const lastCandle = data[data.length - 1];
+            const firstCandle = data[0];
+            
+            const currentPrice = lastCandle.close;
+            const openPrice = firstCandle.open;
+            const change = currentPrice - openPrice;
+            const changePercent = (change / openPrice) * 100;
+            
+            document.getElementById('currentPrice').innerText = currentPrice.toFixed(2);
+            
+            const sign = change >= 0 ? '+' : '';
+            const changeClass = change >= 0 ? 'positive' : 'negative';
+            
+            document.getElementById('priceChange').innerText = `${sign}${change.toFixed(2)}`;
+            document.getElementById('priceChange').className = `ticker-change ${changeClass}`;
+            
+            document.getElementById('changePercent').innerText = `${sign}${changePercent.toFixed(2)}%`;
+            document.getElementById('changePercent').className = `ticker-value ${changeClass}`;
+            
+            document.getElementById('changeValue').innerText = `(${sign}${change.toFixed(2)})`;
+            document.getElementById('changeValue').className = `ticker-change ${changeClass}`;
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            // ✅ Время по Москве
+            const dateStr = formatMoscowDate(now);
+            const timeStr = formatMoscowTime(now);
+            
+            document.getElementById('lastUpdate').innerHTML = `
+                <span class="status-indicator active" id="statusIndicator"></span>
+                Последнее обновление: ${dateStr} ${timeStr} (МСК)
+            `;
+        }
+
+        function updateTfDescription(tf) {
+            const descEl = document.getElementById('tfDescription');
+            const config = tfConfig[tf];
+            if (!config) return;
+            
+            const descriptions = {
+                1: '⚡ <strong>1-минутный таймфрейм</strong> — максимально точное отслеживание.',
+                10: '🔹 <strong>10-минутный таймфрейм</strong> — для скальпинга.',
+                60: '📊 <strong>1-часовой таймфрейм</strong> — анализ краткосрочных движений.',
+                240: '📈 <strong>4-часовой таймфрейм</strong> — среднесрочный тренд.',
+                1440: '📉 <strong>Дневной таймфрейм</strong> — глобальный тренд.',
+                10080: '📅 <strong>Недельный таймфрейм</strong> — долгосрочная перспектива.'
+            };
+            
+            descEl.innerHTML = descriptions[tf] || '';
+        }
+
+        // ============================================
+        // УПРАВЛЕНИЕ ТАЙМФРЕЙМАМИ
+        // ============================================
+        function initTimeframeButtons() {
+            const container = document.getElementById('tfSelector');
+            
+            container.addEventListener('click', function(e) {
+                const btn = e.target.closest('.tf-btn');
+                if (!btn) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const newTf = parseInt(btn.dataset.tf);
+                if (newTf === currentTf) return;
+                
+                // Обновляем UI кнопок
+                document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Переключаем таймфрейм
+                currentTf = newTf;
+                
+                console.log('Переключение на таймфрейм:', newTf, tfConfig[newTf]?.name);
+                
+                // ✅ Проверяем кэш
+                const cached = tfDataCache.get(newTf);
+                const cacheAge = cached ? Date.now() - cached.lastUpdate : Infinity;
+                
+                if (cached && cacheAge < 30000) {
+                    // Используем кэш если он свежий (< 30 сек)
+                    console.log('Используем кэшированные данные, возраст:', (cacheAge/1000).toFixed(1), 'сек');
+                    renderChart(cached.data);
+                    updatePriceTicker(cached.data);
+                    updateLastUpdateTime();
+                    updateTfDescription(newTf);
+                } else {
+                    // Загружаем новые данные
+                    fetchMoexData(newTf, false);
+                }
+            });
+        }
+
+        // ============================================
+        // АВТООБНОВЛЕНИЕ
+        // ============================================
+        function startAutoUpdate() {
+            stopAutoUpdate();
+            
+            countdownSeconds = 30;
+            updateTimerDisplay();
+            updateAutoStatus(true);
+            
+            console.log('Запуск автообновления. Время МСК:', formatMoscowDateTime(new Date()));
+            
+            // ✅ Обновление данных каждые 30 секунд
+            autoUpdateInterval = setInterval(() => {
+                if (document.getElementById('autoUpdateCheck').checked) {
+                    console.log('Автообновление данных для TF:', currentTf, 
+                               'Время МСК:', formatMoscowDateTime(new Date()));
+                    fetchMoexData(currentTf, true);
+                }
+            }, 30000);
+            
+            // ✅ AI-анализ каждые 5 минут (сохраняем в переменную!)
+            aiUpdateInterval = setInterval(() => {
+                if (document.getElementById('autoUpdateCheck').checked) {
+                    const apiKey = document.getElementById('api_key_input').value.trim();
+                    if (apiKey) {
+                        console.log('Автоматический AI-анализ. Время МСК:', formatMoscowDateTime(new Date()));
+                        analyzeWithAI();
+                    }
+                }
+            }, 300000);
+            
+            // Таймер обратного отсчёта
+            countdownInterval = setInterval(() => {
+                if (document.getElementById('autoUpdateCheck').checked) {
+                    countdownSeconds--;
+                    if (countdownSeconds <= 0) {
+                        countdownSeconds = 30;
+                    }
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function stopAutoUpdate() {
+            // ✅ Очищаем ВСЕ интервалы
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+            }
+            if (aiUpdateInterval) {
+                clearInterval(aiUpdateInterval);
+                aiUpdateInterval = null;
+            }
+            if (newsUpdateInterval) {
+                clearInterval(newsUpdateInterval);
+                newsUpdateInterval = null;
+            }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            updateAutoStatus(false);
+        }
+
+        function updateAutoStatus(isActive) {
+            const statusEl = document.getElementById('autoStatus');
+            if (statusEl) {
+                statusEl.className = `status-indicator ${isActive ? 'active' : 'inactive'}`;
+            }
+        }
+
+        function resetCountdown() {
+            countdownSeconds = 30;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(countdownSeconds / 60);
+            const seconds = countdownSeconds % 60;
+            document.getElementById('timerDisplay').innerText = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // ============================================
+        // НОВОСТИ
+        // ============================================
         async function fetchNews() {
             const newsList = document.getElementById('newsList');
             newsList.innerHTML = '<div class="loading-news">Загрузка новостей...</div>';
@@ -793,7 +1358,7 @@
                                         title: title,
                                         text: desc.replace(/<[^>]*>/g, '').substring(0, 200),
                                         impact: impact,
-                                        sentiment: sentiment, // 'bullish', 'bearish', 'neutral'
+                                        sentiment: sentiment,
                                         url: item.querySelector('link')?.textContent || '#'
                                     });
                                 }
@@ -869,6 +1434,9 @@
 
         function generateMarketNews() {
             const now = new Date();
+            const cached = tfDataCache.get(currentTf);
+            const historyData = cached?.data || [];
+            
             const lastPrice = historyData.length > 0 ? historyData[historyData.length-1].close : 76683;
             const prevPrice = historyData.length > 1 ? historyData[historyData.length-2].close : lastPrice;
             const change = lastPrice - prevPrice;
@@ -893,7 +1461,36 @@
             ];
         }
 
-        // Расчет влияния новостей на рынок
+        function updateRealTimeNews(data) {
+            if (!data || data.length < 2) return;
+            
+            const last = data[data.length - 1];
+            const prev = data[data.length - 2];
+            const change = Math.abs((last.close - prev.close) / prev.close * 100);
+            
+            if (change > 0.3) {
+                const trend = last.close > prev.close ? 'рост' : 'снижение';
+                const sentiment = last.close > prev.close ? 'bullish' : 'bearish';
+                
+                const newsItem = {
+                    id: Date.now(),
+                    time: new Date(),
+                    source: 'Авто',
+                    title: `⚡ Резкое ${trend} SiH6 на ${change.toFixed(2)}%`,
+                    text: `Цена изменилась с ${prev.close.toFixed(2)} до ${last.close.toFixed(2)}`,
+                    impact: change > 0.5 ? 'high' : 'medium',
+                    sentiment: sentiment,
+                    url: '#'
+                };
+                
+                allNews.unshift(newsItem);
+                if (allNews.length > 20) allNews.pop();
+                displayNews(allNews);
+                updateNewsCount(allNews.length);
+                updateNewsInfluenceIndicator(allNews);
+            }
+        }
+
         function calculateNewsInfluence(news) {
             if (!news || news.length === 0) return { score: 0, direction: 'neutral', strength: 0 };
             
@@ -903,16 +1500,14 @@
             const impactWeights = { high: 0.4, medium: 0.25, low: 0.1 };
             const sentimentValues = { bullish: 1, neutral: 0, bearish: -1 };
             
-            // Берем только последние 10 новостей
             const recentNews = news.slice(0, 10);
             
             recentNews.forEach(item => {
                 const weight = impactWeights[item.impact] || 0.1;
                 const sentiment = sentimentValues[item.sentiment] || 0;
                 
-                // Чем свежее новость, тем больше вес
                 const ageHours = (new Date() - item.time) / (1000 * 60 * 60);
-                const timeDecay = Math.max(0.3, 1 - (ageHours / 24)); // Макс 24 часа
+                const timeDecay = Math.max(0.3, 1 - (ageHours / 24));
                 
                 const finalWeight = weight * timeDecay;
                 totalWeight += finalWeight;
@@ -921,8 +1516,8 @@
             
             if (totalWeight === 0) return { score: 0, direction: 'neutral', strength: 0 };
             
-            const normalizedScore = weightedSentiment / totalWeight; // -1 to 1
-            const strength = Math.min(100, totalWeight * 100); // 0 to 100
+            const normalizedScore = weightedSentiment / totalWeight;
+            const strength = Math.min(100, totalWeight * 100);
             
             let direction = 'neutral';
             if (normalizedScore > 0.2) direction = 'bullish';
@@ -949,9 +1544,8 @@
             indicator.style.display = 'flex';
             
             const percentage = Math.abs(influence.score) * 100;
-            fill.style.width = `${Math.min(100, percentage * 2)}%`; // Масштабируем для наглядности
+            fill.style.width = `${Math.min(100, percentage * 2)}%`;
             
-            // Цвет в зависимости от направления
             fill.className = 'influence-fill';
             if (influence.direction === 'bullish') {
                 fill.classList.add('bullish');
@@ -967,7 +1561,6 @@
                 text.style.color = '#8b949e';
             }
             
-            // Сохраняем для использования в AI анализе
             window.currentNewsInfluence = influence;
         }
 
@@ -986,7 +1579,7 @@
             container.innerHTML = filtered.map(item => `
                 <div class="news-item ${item.impact}" onclick="window.open('${item.url}', '_blank')">
                     <div class="news-time">
-                        ${formatTime(item.time)}
+                        ${formatNewsTime(item.time)}
                         <span class="news-source">${item.source}</span>
                         ${item.sentiment === 'bullish' ? '🟢' : item.sentiment === 'bearish' ? '🔴' : '⚪'}
                     </div>
@@ -998,14 +1591,16 @@
             `).join('');
         }
 
-        function formatTime(date) {
+        // ✅ Время в новостях по Москве
+        function formatNewsTime(date) {
             const now = new Date();
             const diff = Math.floor((now - date) / 1000 / 60);
             
             if (diff < 1) return 'Только что';
             if (diff < 60) return `${diff} мин назад`;
             if (diff < 1440) return `${Math.floor(diff/60)} ч назад`;
-            return date.toLocaleDateString('ru-RU');
+            // ✅ Дата по Москве
+            return formatMoscowDate(date);
         }
 
         function updateNewsCount(count) {
@@ -1023,297 +1618,20 @@
             fetchNews();
         }
 
-        // ===== ОСТАЛЬНЫЕ ФУНКЦИИ =====
-
-        function getFromDate(daysBack = 7) {
-            const date = new Date();
-            date.setDate(date.getDate() - daysBack);
-            return date.toISOString().split('T')[0];
-        }
-
-        function getTillDate() {
-            const date = new Date();
-            date.setDate(date.getDate() + 1);
-            return date.toISOString().split('T')[0];
-        }
-
-        async function fetchMoexData(timeframe = 60, isUpdate = false) {
-            const loadingEl = document.getElementById('loading');
-            if (!isUpdate) {
-                loadingEl.style.display = 'block';
-                loadingEl.innerText = 'Загрузка данных MOEX...';
-            }
-
-            const interval = tfMap[timeframe];
-            if (!interval) {
-                loadingEl.innerText = '❌ Неподдерживаемый таймфрейм';
-                return;
-            }
-
-            let daysBack = 7;
-            if (timeframe === 1) daysBack = 2;
-            else if (timeframe === 10) daysBack = 5;
-            else if (timeframe === 60) daysBack = 30;
-            else if (timeframe === 240) daysBack = 90;
-            else if (timeframe === 1440) daysBack = 365;
-            else if (timeframe === 10080) daysBack = 730;
-
-            const fromDate = getFromDate(daysBack);
-            const tillDate = getTillDate();
-
-            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=${interval}&from=${fromDate}&till=${tillDate}`;
-
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                
-                if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
-                    throw new Error(`Нет данных для таймфрейма ${timeframe}`);
-                }
-                
-                const columns = data.candles.columns;
-                const openIdx = columns.indexOf('open');
-                const closeIdx = columns.indexOf('close');
-                const highIdx = columns.indexOf('high');
-                const lowIdx = columns.indexOf('low');
-                const beginIdx = columns.indexOf('begin');
-                
-                const raw = data.candles.data;
-                const newData = raw.map(c => {
-                    const dateStr = c[beginIdx];
-                    const timestamp = Math.floor(new Date(dateStr).getTime() / 1000);
-                    return {
-                        time: timestamp,
-                        open: parseFloat(c[openIdx]),
-                        high: parseFloat(c[highIdx]),
-                        low: parseFloat(c[lowIdx]),
-                        close: parseFloat(c[closeIdx])
-                    };
-                });
-
-                newData.sort((a, b) => a.time - b.time);
-                
-                if (newData.length > 0) {
-                    const lastTime = newData[newData.length - 1].time;
-                    
-                    if (!isUpdate || lastTime > lastCandleTime || 
-                        JSON.stringify(newData[newData.length-1]) !== JSON.stringify(historyData[historyData.length-1])) {
-                        
-                        historyData = newData;
-                        lastCandleTime = lastTime;
-                        
-                        if (!isUpdate) {
-                            renderChart(historyData);
-                        } else {
-                            updateChartData(historyData);
-                        }
-                        
-                        updatePriceTicker(historyData);
-                        updateLastUpdateTime();
-                        
-                        if (isUpdate) {
-                            updateRealTimeNews();
-                        }
-                    }
-                }
-                
-                if (!isUpdate) {
-                    loadingEl.style.display = 'none';
-                    updateTfDescription(timeframe);
-                }
-                
-            } catch (err) {
-                console.error("MOEX Error:", err);
-                if (!isUpdate) {
-                    loadingEl.innerHTML = `❌ Ошибка: ${err.message}`;
-                }
-            }
-        }
-
-        function updateRealTimeNews() {
-            if (historyData.length < 2) return;
-            
-            const last = historyData[historyData.length-1];
-            const prev = historyData[historyData.length-2];
-            const change = Math.abs((last.close - prev.close) / prev.close * 100);
-            
-            if (change > 0.3) {
-                const trend = last.close > prev.close ? 'рост' : 'снижение';
-                const sentiment = last.close > prev.close ? 'bullish' : 'bearish';
-                
-                const newsItem = {
-                    id: Date.now(),
-                    time: new Date(),
-                    source: 'Авто',
-                    title: `⚡ Резкое ${trend} SiH6 на ${change.toFixed(2)}%`,
-                    text: `Цена изменилась с ${prev.close.toFixed(2)} до ${last.close.toFixed(2)}`,
-                    impact: change > 0.5 ? 'high' : 'medium',
-                    sentiment: sentiment,
-                    url: '#'
-                };
-                
-                allNews.unshift(newsItem);
-                if (allNews.length > 20) allNews.pop();
-                displayNews(allNews);
-                updateNewsCount(allNews.length);
-                updateNewsInfluenceIndicator(allNews);
-            }
-        }
-
-        function renderChart(data) {
-            if (typeof LightweightCharts === 'undefined') {
-                document.getElementById('loading').innerHTML = '❌ Библиотека графиков не загрузилась';
-                return;
-            }
-            
-            const chartContainer = document.getElementById('chart');
-            const loadingEl = document.getElementById('loading');
-            chartContainer.innerHTML = '';
-            chartContainer.appendChild(loadingEl);
-            
-            currentChart = LightweightCharts.createChart(chartContainer, {
-                layout: { 
-                    background: { color: '#161b22' }, 
-                    textColor: '#d1d4dc',
-                    fontSize: 12,
-                },
-                grid: { 
-                    vertLines: { color: '#30363d' }, 
-                    horzLines: { color: '#30363d' } 
-                },
-                timeScale: { 
-                    borderColor: '#30363d',
-                    timeVisible: true,
-                    secondsVisible: false,
-                    rightOffset: 5,
-                    barSpacing: 6,
-                },
-                crosshair: { 
-                    mode: LightweightCharts.CrosshairMode.Normal,
-                    vertLine: { color: '#758696', labelBackgroundColor: '#758696' },
-                    horzLine: { color: '#758696', labelBackgroundColor: '#758696' },
-                },
-                width: chartContainer.clientWidth,
-                height: 400,
-                rightPriceScale: { borderColor: '#30363d' },
-            });
-            
-            candleSeries = currentChart.addCandlestickSeries({ 
-                upColor: '#238636', 
-                downColor: '#f85149', 
-                borderVisible: false, 
-                wickVisible: true,
-                priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-            });
-            
-            candleSeries.setData(data);
-            currentChart.timeScale().fitContent();
-            currentChart.timeScale().scrollToPosition(-5, false);
-            
-            if (data.length > 0) {
-                const lastCandle = data[data.length - 1];
-                candleSeries.createPriceLine({
-                    price: lastCandle.close,
-                    color: '#8957e5',
-                    lineWidth: 2,
-                    lineStyle: LightweightCharts.LineStyle.Dashed,
-                    axisLabelVisible: true,
-                    title: 'Last',
-                });
-            }
-            
-            let resizeTimeout;
-            window.addEventListener('resize', () => {
-                clearTimeout(resizeTimeout);
-                resizeTimeout = setTimeout(() => {
-                    if (currentChart) {
-                        currentChart.applyOptions({ width: chartContainer.clientWidth });
-                    }
-                }, 100);
-            });
-        }
-
-        function updateChartData(data) {
-            if (!candleSeries || !currentChart) return;
-            candleSeries.setData(data);
-            currentChart.timeScale().fitContent();
-        }
-
-        function updatePriceTicker(data) {
-            if (data.length < 2) return;
-            
-            const lastCandle = data[data.length - 1];
-            const prevCandle = data[data.length - 2];
-            
-            const currentPrice = lastCandle.close;
-            const prevClose = prevCandle.close;
-            const change = currentPrice - prevClose;
-            const changePercent = (change / prevClose) * 100;
-            
-            document.getElementById('currentPrice').innerText = currentPrice.toFixed(2);
-            
-            const sign = change >= 0 ? '+' : '';
-            const changeClass = change >= 0 ? 'positive' : 'negative';
-            
-            document.getElementById('priceChange').innerText = `${sign}${change.toFixed(2)}`;
-            document.getElementById('priceChange').className = `ticker-change ${changeClass}`;
-            
-            document.getElementById('changePercent').innerText = `${sign}${changePercent.toFixed(2)}%`;
-            document.getElementById('changePercent').className = `ticker-value ${changeClass}`;
-            
-            document.getElementById('changeValue').innerText = `(${sign}${change.toFixed(2)})`;
-            document.getElementById('changeValue').className = `ticker-change ${changeClass}`;
-        }
-
-        function updateLastUpdateTime() {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('ru-RU');
-            document.getElementById('lastUpdate').innerText = `Последнее обновление: ${timeStr}`;
-        }
-
-        function updateTfDescription(tf) {
-            const descEl = document.getElementById('tfDescription');
-            const descriptions = {
-                1: '⚡ <strong>1-минутный таймфрейм</strong> — максимально точное отслеживание.',
-                10: '🔹 <strong>10-минутный таймфрейм</strong> — для скальпинга.',
-                60: '📊 <strong>1-часовой таймфрейм</strong> — анализ краткосрочных движений.',
-                240: '📈 <strong>4-часовой таймфрейм</strong> — среднесрочный тренд.',
-                1440: '📉 <strong>Дневной таймфрейм</strong> — глобальный тренд.',
-                10080: '📅 <strong>Недельный таймфрейм</strong> — долгосрочная перспектива.'
-            };
-            descEl.innerHTML = descriptions[tf] || '';
-        }
-
-        function initTimeframeButtons() {
-            const container = document.getElementById('tfSelector');
-            
-            container.addEventListener('click', function(e) {
-                const btn = e.target.closest('.tf-btn');
-                if (!btn) return;
-                
-                e.preventDefault();
-                e.stopPropagation();
-                
-                document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                
-                const newTf = parseInt(btn.dataset.tf);
-                currentTf = newTf;
-                lastCandleTime = 0;
-                
-                fetchMoexData(newTf, false);
-            });
-        }
-
-        // ===== КОМПЛЕКСНЫЙ АНАЛИЗ С УЧЕТОМ НОВОСТЕЙ =====
-
+        // ============================================
+        // AI АНАЛИЗ
+        // ============================================
         async function analyzeWithAI() {
             const apiKey = document.getElementById('api_key_input').value.trim();
             if (!apiKey) {
                 alert("Введите API-ключ OpenRouter");
                 return;
             }
+            
+            // ✅ Получаем данные из кэша
+            const cached = tfDataCache.get(currentTf);
+            const historyData = cached?.data || [];
+            
             if (historyData.length === 0) {
                 alert("Сначала дождитесь загрузки данных");
                 return;
@@ -1326,10 +1644,9 @@
             const lastData = historyData.slice(-50);
             const recentNews = allNews.slice(0, 8);
             
-            // Расчет влияния новостей
             const newsInfluence = calculateNewsInfluence(allNews);
             
-            const tfNames = {1: '1 минута', 10: '10 минут', 60: '1 час', 240: '4 часа', 1440: '1 день', 10080: '1 неделя'};
+            const config = tfConfig[currentTf];
             const currentPrice = lastData[lastData.length - 1].close;
             
             const newsContext = recentNews.map(n => 
@@ -1343,7 +1660,7 @@
                     content: `Ты профессиональный трейдер. Делаешь КОМПЛЕКСНЫЙ анализ фьючерса ${TICKER} (доллар/рубль).
 
 === ТЕХНИЧЕСКИЕ ДАННЫЕ ===
-- Таймфрейм: ${tfNames[currentTf]}
+- Таймфрейм: ${config?.name || currentTf}
 - Текущая цена: ${currentPrice}
 - Последние 30 свечей: ${JSON.stringify(lastData.slice(-30))}
 
@@ -1442,7 +1759,6 @@ ${newsContext || 'Нет значимых новостей'}
                     const parsed = JSON.parse(jsonMatch[0]);
                     result = { ...result, ...parsed };
                 } else {
-                    // Fallback
                     const upperAns = answer.toUpperCase();
                     if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) result.final_signal = "ПОКУПКА";
                     else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) result.final_signal = "ПРОДАЖА";
@@ -1455,10 +1771,8 @@ ${newsContext || 'Нет значимых новостей'}
                 result.technical_reason = answer.substring(0, 200);
             }
 
-            // Сохраняем результат
             lastAnalysisResult = result;
 
-            // Отображение сигнала
             ui.className = "signal-display";
             if (result.final_signal === "ПОКУПКА") {
                 ui.classList.add("buy");
@@ -1471,7 +1785,6 @@ ${newsContext || 'Нет значимых новостей'}
                 stext.innerText = "ДЕРЖАТЬ";
             }
 
-            // Формирование описания
             let descText = "";
             
             if (result.convergence) {
@@ -1497,7 +1810,6 @@ ${newsContext || 'Нет значимых новостей'}
             
             descEl.innerText = descText;
 
-            // Статистика
             if (result.rsi || result.macd) {
                 document.getElementById('statsGrid').style.display = 'grid';
                 document.getElementById('statRsi').innerText = result.rsi ? result.rsi.toFixed(2) : '-';
@@ -1509,68 +1821,19 @@ ${newsContext || 'Нет значимых новостей'}
             }
         }
 
-        function startAutoUpdate() {
-            stopAutoUpdate();
-            
-            countdownSeconds = 30;
-            updateTimerDisplay();
-            
-            autoUpdateInterval = setInterval(() => {
-                if (document.getElementById('autoUpdateCheck').checked) {
-                    fetchMoexData(currentTf, true);
-                }
-            }, 30000);
-            
-            setInterval(() => {
-                if (document.getElementById('autoUpdateCheck').checked) {
-                    analyzeWithAI();
-                }
-            }, 300000);
-            
-            countdownInterval = setInterval(() => {
-                if (document.getElementById('autoUpdateCheck').checked) {
-                    countdownSeconds--;
-                    if (countdownSeconds <= 0) countdownSeconds = 30;
-                    updateTimerDisplay();
-                }
-            }, 1000);
-        }
-
-        function stopAutoUpdate() {
-            if (autoUpdateInterval) {
-                clearInterval(autoUpdateInterval);
-                autoUpdateInterval = null;
-            }
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-                countdownInterval = null;
-            }
-        }
-
-        function resetCountdown() {
-            countdownSeconds = 30;
-            updateTimerDisplay();
-        }
-
-        function updateTimerDisplay() {
-            const minutes = Math.floor(countdownSeconds / 60);
-            const seconds = countdownSeconds % 60;
-            document.getElementById('timerDisplay').innerText = 
-                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        document.getElementById('autoUpdateCheck').addEventListener('change', function(e) {
-            if (e.target.checked) startAutoUpdate();
-            else stopAutoUpdate();
-        });
-
+        // ============================================
+        // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ UI
+        // ============================================
         function saveConfig() {
             const key = document.getElementById('api_key_input').value.trim();
             if (key) {
-                localStorage.setItem('si_key', key);
-                alert("Ключ сохранён");
+                if (safeSetLocalStorage('si_key', key)) {
+                    alert("Ключ сохранён");
+                } else {
+                    alert("Не удалось сохранить ключ (localStorage недоступен)");
+                }
             } else {
-                localStorage.removeItem('si_key');
+                safeSetLocalStorage('si_key', '');
                 alert("Ключ удалён");
             }
         }
@@ -1582,7 +1845,7 @@ ${newsContext || 'Нет значимых новостей'}
             btn.classList.toggle('active', useProxy);
         }
 
-        window.toggleExplain = function() {
+        function toggleExplain() {
             const content = document.getElementById('explainContent');
             const toggle = document.getElementById('explainToggle');
             if (content.classList.contains('collapsed')) {
@@ -1592,22 +1855,54 @@ ${newsContext || 'Нет значимых новостей'}
                 content.classList.add('collapsed');
                 toggle.innerText = '+';
             }
-        };
+        }
 
-        // Инициализация
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================
         window.addEventListener('DOMContentLoaded', () => {
-            const savedKey = localStorage.getItem('si_key');
-            if (savedKey) document.getElementById('api_key_input').value = savedKey;
+            // Загружаем сохранённый ключ
+            const savedKey = safeGetLocalStorage('si_key');
+            if (savedKey) {
+                document.getElementById('api_key_input').value = savedKey;
+            }
             
+            // Инициализируем кнопки таймфреймов
             initTimeframeButtons();
+            
+            // Загружаем начальные данные
             fetchMoexData(60, false);
+            
+            // Загружаем новости
             fetchNews();
             
-            if (document.getElementById('autoUpdateCheck').checked) {
+            // ✅ Обновление новостей каждые 5 минут
+            newsUpdateInterval = setInterval(fetchNews, 300000);
+            
+            // Запускаем автообновление если включено
+            const autoCheck = document.getElementById('autoUpdateCheck');
+            if (autoCheck && autoCheck.checked) {
                 startAutoUpdate();
             }
             
-            setInterval(fetchNews, 300000);
+            // Обработчик изменения чекбокса автообновления
+            autoCheck.addEventListener('change', function(e) {
+                if (e.target.checked) {
+                    startAutoUpdate();
+                } else {
+                    stopAutoUpdate();
+                }
+            });
+            
+            console.log('Инициализация завершена. Время МСК:', formatMoscowDateTime(new Date()));
+        });
+
+        // ✅ Очистка при закрытии страницы
+        window.addEventListener('beforeunload', () => {
+            stopAutoUpdate();
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
         });
     </script>
 </body>
