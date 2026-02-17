@@ -3,14 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <title>Анализ Si-3.26</title>
+    <!-- Убираем ошибку favicon -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <style>
         body { font-family: sans-serif; background: #131722; color: white; margin: 20px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
-        .chart-box { flex: 2; min-width: 600px; height: 600px; }
-        .manual-input { flex: 1; min-width: 300px; background: #1e222d; padding: 20px; border-radius: 8px; }
-        textarea { width: 100%; height: 150px; margin-top: 10px; background: #2a2e39; color: white; border: 1px solid #363c4e; padding: 10px; }
-        button { background: #2962ff; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; margin-top: 10px; }
-        h2 { margin-top: 0; color: #d1d4dc; }
+        .chart-box { flex: 2; min-width: 600px; height: 600px; background: #1e222d; border-radius: 8px; overflow: hidden; }
+        .manual-input { flex: 1; min-width: 300px; background: #1e222d; padding: 20px; border-radius: 8px; box-sizing: border-box; }
+        textarea { width: 100%; height: 150px; margin-top: 10px; background: #2a2e39; color: white; border: 1px solid #363c4e; padding: 10px; box-sizing: border-box; border-radius: 4px; }
+        button { background: #2962ff; color: white; border: none; padding: 12px 20px; cursor: pointer; border-radius: 4px; margin-top: 10px; width: 100%; font-weight: bold; }
+        button:hover { background: #1e4bd8; }
+        h1 { font-size: 24px; color: #d1d4dc; }
+        h2 { margin-top: 0; color: #d1d4dc; font-size: 18px; }
+        select { width: 100%; padding: 10px; margin-bottom: 15px; background: #2a2e39; color: white; border: 1px solid #363c4e; border-radius: 4px; }
+        label { font-size: 0.9em; color: #848e9c; }
     </style>
 </head>
 <body>
@@ -18,39 +24,32 @@
     <h1>Технический анализ Si-3.26 (Фьючерс USD/RUB)</h1>
 
     <div class="container">
-        <!-- Виджет графика TradingView -->
+        <!-- Виджет графика через iframe (самый стабильный метод) -->
         <div class="chart-box">
-            <div id="tradingview_chart"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com"></script>
-            <script type="text/javascript">
-                new TradingView.widget({
-                    "autosize": true,
-                    "symbol": "MOEX:SI1!", // Склейка фьючерса Si
-                    "interval": "D",
-                    "timezone": "Europe/Moscow",
-                    "theme": "dark",
-                    "style": "1",
-                    "locale": "ru",
-                    "toolbar_bg": "#f1f3f6",
-                    "enable_publishing": false,
-                    "allow_symbol_change": true,
-                    "container_id": "tradingview_chart"
-                });
-            </script>
+            <iframe 
+                src="https://s.tradingview.com!" 
+                width="100%" 
+                height="100%" 
+                frameborder="0" 
+                allowfullscreen="true" 
+                scrolling="no" 
+                allowtransparency="true">
+            </iframe>
         </div>
 
         <!-- Ручной ввод новостного фона -->
         <div class="manual-input">
             <h2>Новостной фон и заметки</h2>
+            
             <label>Текущий тренд:</label>
-            <select id="trend" style="width: 100%; padding: 5px; margin-bottom: 15px;">
+            <select id="trend">
                 <option value="up">Восходящий (Long)</option>
                 <option value="down">Нисходящий (Short)</option>
                 <option value="flat">Боковик (Flat)</option>
             </select>
 
-            <label>Важные новости/события:</label>
-            <textarea id="newsInput" placeholder="Введите ключевые новости дня (ЦБ, нефть, санкции...)"></textarea>
+            <label>Важные новости и события:</label>
+            <textarea id="newsInput" placeholder="Введите ключевые события (ЦБ, нефть, санкции...)"></textarea>
             
             <button onclick="saveAnalysis()">Сохранить анализ</button>
             
@@ -59,28 +58,32 @@
     </div>
 
     <script>
+        // Функция сохранения
         function saveAnalysis() {
             const news = document.getElementById('newsInput').value;
             const trend = document.getElementById('trend').value;
             const date = new Date().toLocaleString();
             
-            // Сохраняем в локальное хранилище браузера
             const analysis = { date, trend, news };
-            localStorage.setItem('si_analysis', JSON.stringify(analysis));
+            localStorage.setItem('si_analysis_data', JSON.stringify(analysis));
             
-            document.getElementById('savedStatus').innerText = "Данные сохранены локально: " + date;
+            document.getElementById('savedStatus').innerText = "Данные сохранены: " + date;
+            
+            // Очистка уведомления через 3 секунды
+            setTimeout(() => {
+                document.getElementById('savedStatus').innerText = "";
+            }, 3000);
         }
 
-        // Загрузка данных при открытии
+        // Загрузка данных при старте
         window.onload = function() {
-            const saved = localStorage.getItem('si_analysis');
+            const saved = localStorage.getItem('si_analysis_data');
             if (saved) {
                 const data = JSON.parse(saved);
-                document.getElementById('newsInput').value = data.news;
-                document.getElementById('trend').value = data.trend;
+                document.getElementById('newsInput').value = data.news || "";
+                document.getElementById('trend').value = data.trend || "up";
             }
         };
     </script>
 </body>
 </html>
-
