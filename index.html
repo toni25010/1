@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Si-3.26 Аналитик | Все таймфреймы за 365 дней</title>
+    <title>Si-3.26 Аналитик | Реальное время (обновление 5 мин)</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
@@ -196,6 +196,10 @@
             margin-top: 8px;
         }
 
+        button.small.active {
+            background: var(--accent);
+        }
+
         .info {
             font-size: 13px;
             color: #8b949e;
@@ -231,6 +235,7 @@
             white-space: nowrap;
             font-size: 14px;
             z-index: 10;
+            display: none;
         }
 
         .explain-card {
@@ -292,6 +297,31 @@
             color: var(--text);
         }
 
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .stat-item {
+            background: #0d1117;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .stat-label {
+            color: #8b949e;
+            font-size: 11px;
+        }
+
+        .stat-value {
+            color: var(--text);
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
         @media (max-width: 900px) {
             .grid { grid-template-columns: 1fr; }
             #chart { height: 400px; }
@@ -309,7 +339,7 @@
     </style>
 </head>
 <body>
-    <h2>Анализ Si-3.26 (H6) / фьючерс SiH6</h2>
+    <h2>Анализ Si-3.26 (H6) / фьючерс SiH6 (обновление каждые 5 мин)</h2>
 
     <div class="grid">
         <div class="card" id="chartContainer">
@@ -321,8 +351,9 @@
                 <button class="tf-btn" data-tf="1440">1D</button>
                 <button class="tf-btn" data-tf="10080">1W</button>
             </div>
-            <div id="chart" style="height: 400px;"></div>
-            <div id="loading">Загрузка данных MOEX...</div>
+            <div id="chart" style="height: 400px;">
+                <div id="loading">Загрузка данных MOEX...</div>
+            </div>
         </div>
 
         <div class="side">
@@ -333,9 +364,28 @@
                 </div>
                 <div id="ai_desc" class="info">Нажмите кнопку для AI‑анализа</div>
                 
+                <div class="stats-grid" id="statsGrid" style="display: none;">
+                    <div class="stat-item">
+                        <div class="stat-label">RSI (14)</div>
+                        <div class="stat-value" id="statRsi">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">MACD</div>
+                        <div class="stat-value" id="statMacd">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">EMA 20/50</div>
+                        <div class="stat-value" id="statEma">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Тренд</div>
+                        <div class="stat-value" id="statTrend">-</div>
+                    </div>
+                </div>
+
                 <div class="auto-update-row">
                     <label class="auto-update-label">
-                        <input type="checkbox" id="autoUpdateCheck"> 🔄 Автообновление (5 мин)
+                        <input type="checkbox" id="autoUpdateCheck" checked> 🔄 Автообновление (5 мин)
                     </label>
                     <span class="timer" id="timerDisplay">05:00</span>
                 </div>
@@ -377,15 +427,16 @@
         let countdownInterval = null;
         let countdownSeconds = 300;
         let currentChart = null;
+        let chartUpdateInterval = null;
 
-        // Соответствие таймфрейма интервалам MOEX
+        // Исправлено: правильное отображение таймфреймов MOEX
         const tfMap = {
             5: 5,
             15: 15,
             60: 60,
-            240: 4,      // 4 часа в MOEX обозначается интервалом 4
-            1440: 24,    // 1 день = 24
-            10080: 7     // 1 неделя = 7 (дней)
+            240: 240,    // 4 часа = 240 минут
+            1440: 1440,  // 1 день = 1440 минут
+            10080: 10080 // 1 неделя = 10080 минут
         };
 
         // Функция получения даты "from" (365 дней назад)
@@ -406,8 +457,9 @@
                 return;
             }
 
-            const fromDate = getFromDate(); // всегда 365 дней назад
+            const fromDate = getFromDate();
 
+            // Исправлено: убран пробел в URL
             const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/${TICKER}/candles.json?interval=${interval}&from=${fromDate}`;
             
             try {
@@ -420,10 +472,8 @@
                 }
                 
                 const raw = data.candles.data;
-                // Формат: [open, close, high, low, ..., begin]
                 historyData = raw.map(c => {
                     const dateStr = c[6]; // "YYYY-MM-DD HH:MM:SS"
-                    // Преобразуем в метку времени (секунды)
                     const timestamp = Math.floor(new Date(dateStr).getTime() / 1000);
                     return {
                         time: timestamp,
@@ -434,7 +484,6 @@
                     };
                 });
 
-                // Сортируем по времени (на всякий случай)
                 historyData.sort((a, b) => a.time - b.time);
 
                 renderChart(historyData);
@@ -454,11 +503,11 @@
             }
             
             const chartContainer = document.getElementById('chart');
-            
-            // Полностью очищаем контейнер
+            // Исправлено: сохраняем loading элемент
+            const loadingEl = document.getElementById('loading');
             chartContainer.innerHTML = '';
+            chartContainer.appendChild(loadingEl);
             
-            // Создаём новый график
             currentChart = LightweightCharts.createChart(chartContainer, {
                 layout: { 
                     background: { color: '#161b22' }, 
@@ -490,11 +539,15 @@
             series.setData(data);
             currentChart.timeScale().fitContent();
             
-            // Обработка изменения размера окна
+            // Исправлено: debounce для resize
+            let resizeTimeout;
             window.addEventListener('resize', () => {
-                if (currentChart) {
-                    currentChart.applyOptions({ width: chartContainer.clientWidth });
-                }
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    if (currentChart) {
+                        currentChart.applyOptions({ width: chartContainer.clientWidth });
+                    }
+                }, 100);
             });
         }
 
@@ -523,7 +576,7 @@
             }
         });
 
-        // Улучшенный промпт для DeepSeek
+        // Доработано: улучшенный промпт и парсинг ответа
         async function analyzeWithAI() {
             const apiKey = document.getElementById('api_key_input').value.trim();
             if (!apiKey) {
@@ -537,8 +590,9 @@
 
             document.getElementById('signal_text').innerText = "АНАЛИЗ...";
             document.getElementById('ai_desc').innerText = "Запрос к DeepSeek...";
+            document.getElementById('statsGrid').style.display = 'none';
 
-            const lastData = historyData.slice(-30); // 30 свечей для анализа
+            const lastData = historyData.slice(-50); // Увеличено до 50 свечей
             
             let tfName = '';
             if (currentTf === 5) tfName = '5 минут';
@@ -552,34 +606,52 @@
                 model: "deepseek/deepseek-chat",
                 messages: [{
                     role: "user",
-                    content: `Ты профессиональный трейдер. Инструмент: ${TICKER} (фьючерс на доллар/рубль). Таймфрейм: ${tfName}. Данные свечей (дата, open, high, low, close) за последние 30 периодов: ${JSON.stringify(lastData)}.
+                    content: `Ты профессиональный трейдер. Инструмент: ${TICKER} (фьючерс на доллар/рубль). Таймфрейм: ${tfName}. 
 
-Проведи технический анализ, рассчитай следующие индикаторы по последней закрытой свече:
-- RSI (14)
-- MACD (линия, сигнальная, гистограмма)
-- EMA20 и EMA50 (значения и положение цены относительно них)
-- Определи ближайшие уровни поддержки и сопротивления (по локальным экстремумам)
+Данные свечей (open, high, low, close) за последние ${lastData.length} периодов (новейшие последние):
+${JSON.stringify(lastData.slice(-30))}
 
-Затем дай торговый сигнал: только одно слово — ПОКУПКА, ПРОДАЖА или ДЕРЖАТЬ. После сигнала кратко поясни (одно предложение), на основе каких индикаторов сделан вывод, и укажи значения индикаторов (например: RSI=45, MACD положительный, цена выше EMA20).`
+Проведи технический анализ:
+1. Рассчитай RSI(14) по последней закрытой свече
+2. Рассчитай MACD (12,26,9) - значения линии, сигнала и гистограммы
+3. Рассчитай EMA20 и EMA50
+4. Определи ближайшие уровни поддержки и сопротивления
+
+Ответь СТРОГО в формате JSON:
+{
+  "signal": "ПОКУПКА|ПРОДАЖА|ДЕРЖАТЬ",
+  "confidence": 0-100,
+  "rsi": число,
+  "macd": "описание",
+  "ema20": число,
+  "ema50": число,
+  "trend": "восходящий|нисходящий|боковик",
+  "reason": "краткое обоснование сигнала",
+  "levels": {"support": число, "resistance": число}
+}`
                 }]
             };
 
+            // Исправлено: правильная обработка прокси
             let apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+            let fetchOptions = {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${apiKey}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": window.location.href,
+                    "X-Title": "Si Analyzer"
+                },
+                body: JSON.stringify(requestBody)
+            };
+
             if (useProxy) {
-                apiUrl = `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(apiUrl)}`;
+                // Исправлено: правильный URL для прокси
+                apiUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
             }
 
             try {
-                const response = await fetch(apiUrl, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${apiKey}`,
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": window.location.href,
-                        "X-Title": "Si Analyzer"
-                    },
-                    body: JSON.stringify(requestBody)
-                });
+                const response = await fetch(apiUrl, fetchOptions);
 
                 if (!response.ok) {
                     const errText = await response.text();
@@ -590,49 +662,111 @@
                 if (aiRes.error) throw new Error(aiRes.error.message);
 
                 const answer = aiRes.choices[0].message.content;
-                const ui = document.getElementById('signal_ui');
-                const stext = document.getElementById('signal_text');
-                const descEl = document.getElementById('ai_desc');
-
-                ui.className = "signal-display";
-                const upperAns = answer.toUpperCase();
-                if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) {
-                    ui.classList.add("buy");
-                    stext.innerText = "ПОКУПКА";
-                } else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) {
-                    ui.classList.add("sell");
-                    stext.innerText = "ПРОДАЖА";
-                } else {
-                    ui.classList.add("hold");
-                    stext.innerText = "ДЕРЖАТЬ";
-                }
-
-                descEl.innerText = answer.substring(0, 500) + (answer.length > 500 ? "…" : "");
+                parseAndDisplayAIResponse(answer);
                 
                 resetCountdown();
                 
             } catch (e) {
-                alert("Ошибка при обращении к AI: " + e.message);
-                document.getElementById('signal_text').innerText = "ОШИБКА";
-                document.getElementById('ai_desc').innerText = "Проверьте ключ, CORS-прокси или консоль браузера.";
                 console.error("AI Error:", e);
+                document.getElementById('signal_text').innerText = "ОШИБКА";
+                document.getElementById('ai_desc').innerText = `Ошибка: ${e.message}. Проверьте ключ, попробуйте CORS-прокси или расширение Allow CORS.`;
+                document.getElementById('signal_ui').className = "signal-display hold";
+            }
+        }
+
+        // Доработано: парсинг JSON ответа от AI
+        function parseAndDisplayAIResponse(answer) {
+            const ui = document.getElementById('signal_ui');
+            const stext = document.getElementById('signal_text');
+            const descEl = document.getElementById('ai_desc');
+            
+            let result = {
+                signal: "ДЕРЖАТЬ",
+                confidence: 50,
+                rsi: null,
+                macd: null,
+                ema20: null,
+                ema50: null,
+                trend: "неопределен",
+                reason: "",
+                levels: null
+            };
+
+            // Пытаемся найти JSON в ответе
+            try {
+                const jsonMatch = answer.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    result = { ...result, ...parsed };
+                } else {
+                    // Fallback: текстовый парсинг
+                    const upperAns = answer.toUpperCase();
+                    if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) result.signal = "ПОКУПКА";
+                    else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) result.signal = "ПРОДАЖА";
+                    result.reason = answer.substring(0, 200);
+                }
+            } catch (e) {
+                console.warn("Не удалось распарсить JSON, используем текстовый анализ");
+                const upperAns = answer.toUpperCase();
+                if (upperAns.includes("ПОКУПКА") || upperAns.includes("BUY")) result.signal = "ПОКУПКА";
+                else if (upperAns.includes("ПРОДАЖА") || upperAns.includes("SELL")) result.signal = "ПРОДАЖА";
+                result.reason = answer.substring(0, 200);
+            }
+
+            // Отображение сигнала
+            ui.className = "signal-display";
+            if (result.signal === "ПОКУПКА") {
+                ui.classList.add("buy");
+                stext.innerText = "ПОКУПКА";
+            } else if (result.signal === "ПРОДАЖА") {
+                ui.classList.add("sell");
+                stext.innerText = "ПРОДАЖА";
+            } else {
+                ui.classList.add("hold");
+                stext.innerText = "ДЕРЖАТЬ";
+            }
+
+            // Отображение описания
+            let descText = result.reason || answer.substring(0, 300);
+            if (result.confidence) {
+                descText = `Уверенность: ${result.confidence}%\n` + descText;
+            }
+            descEl.innerText = descText;
+
+            // Отображение статистики
+            if (result.rsi || result.macd) {
+                document.getElementById('statsGrid').style.display = 'grid';
+                document.getElementById('statRsi').innerText = result.rsi ? result.rsi.toFixed(2) : '-';
+                document.getElementById('statMacd').innerText = result.macd || '-';
+                document.getElementById('statEma').innerText = (result.ema20 && result.ema50) 
+                    ? `${result.ema20.toFixed(2)} / ${result.ema50.toFixed(2)}` 
+                    : '-';
+                document.getElementById('statTrend').innerText = result.trend || '-';
             }
         }
 
         // Функции автообновления
         function startAutoUpdate() {
-            if (autoUpdateInterval) clearInterval(autoUpdateInterval);
-            if (countdownInterval) clearInterval(countdownInterval);
+            stopAutoUpdate(); // Очищаем старые интервалы
             
             countdownSeconds = 300;
             updateTimerDisplay();
             
+            // Интервал для AI-анализа (5 минут)
             autoUpdateInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
                     analyzeWithAI();
                 }
             }, 300000);
             
+            // Интервал для обновления графика (тоже 5 минут)
+            chartUpdateInterval = setInterval(() => {
+                if (document.getElementById('autoUpdateCheck').checked) {
+                    fetchMoexData(currentTf);
+                }
+            }, 300000);
+            
+            // Таймер обратного отсчёта
             countdownInterval = setInterval(() => {
                 if (document.getElementById('autoUpdateCheck').checked) {
                     countdownSeconds--;
@@ -646,6 +780,10 @@
             if (autoUpdateInterval) {
                 clearInterval(autoUpdateInterval);
                 autoUpdateInterval = null;
+            }
+            if (chartUpdateInterval) {
+                clearInterval(chartUpdateInterval);
+                chartUpdateInterval = null;
             }
             if (countdownInterval) {
                 clearInterval(countdownInterval);
@@ -676,14 +814,20 @@
 
         function saveConfig() {
             const key = document.getElementById('api_key_input').value.trim();
-            if (key) localStorage.setItem('si_key', key);
-            else localStorage.removeItem('si_key');
-            alert("Ключ сохранён в localStorage");
+            if (key) {
+                localStorage.setItem('si_key', key);
+                alert("Ключ сохранён");
+            } else {
+                localStorage.removeItem('si_key');
+                alert("Ключ удалён");
+            }
         }
 
         function toggleProxy() {
             useProxy = !useProxy;
-            document.getElementById('proxyBtn').innerText = useProxy ? "🔁 CORS-прокси: ВКЛ" : "🔁 CORS-прокси: ВЫКЛ";
+            const btn = document.getElementById('proxyBtn');
+            btn.innerText = useProxy ? "🔁 CORS-прокси: ВКЛ" : "🔁 CORS-прокси: ВЫКЛ";
+            btn.classList.toggle('active', useProxy);
         }
 
         window.toggleExplain = function() {
@@ -698,11 +842,18 @@
             }
         };
 
-        window.onload = () => {
+        // Инициализация
+        window.addEventListener('DOMContentLoaded', () => {
             const savedKey = localStorage.getItem('si_key');
             if (savedKey) document.getElementById('api_key_input').value = savedKey;
-            fetchMoexData(60); // по умолчанию 1H
-        };
+            
+            fetchMoexData(60);
+            
+            // Запускаем автообновление только если чекбокс включён
+            if (document.getElementById('autoUpdateCheck').checked) {
+                startAutoUpdate();
+            }
+        });
     </script>
 </body>
 </html>
