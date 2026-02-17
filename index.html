@@ -2,86 +2,101 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Анализ Si-3.26</title>
-    <!-- Убираем ошибку favicon -->
+    <title>MOEX Si Аналитика напрямую</title>
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <!-- Подключаем легкую библиотеку для графиков -->
+    <script src="https://unpkg.com"></script>
     <style>
         body { font-family: sans-serif; background: #131722; color: white; margin: 20px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
-        .chart-box { flex: 2; min-width: 600px; height: 600px; background: #1e222d; border-radius: 8px; overflow: hidden; }
+        .chart-box { flex: 2; min-width: 600px; height: 500px; background: #1e222d; border-radius: 8px; position: relative; }
         .manual-input { flex: 1; min-width: 300px; background: #1e222d; padding: 20px; border-radius: 8px; box-sizing: border-box; }
-        textarea { width: 100%; height: 150px; margin-top: 10px; background: #2a2e39; color: white; border: 1px solid #363c4e; padding: 10px; box-sizing: border-box; border-radius: 4px; }
-        button { background: #2962ff; color: white; border: none; padding: 12px 20px; cursor: pointer; border-radius: 4px; margin-top: 10px; width: 100%; font-weight: bold; }
-        button:hover { background: #1e4bd8; }
-        h1 { font-size: 24px; color: #d1d4dc; }
-        h2 { margin-top: 0; color: #d1d4dc; font-size: 18px; }
-        select { width: 100%; padding: 10px; margin-bottom: 15px; background: #2a2e39; color: white; border: 1px solid #363c4e; border-radius: 4px; }
-        label { font-size: 0.9em; color: #848e9c; }
+        textarea { width: 100%; height: 150px; margin-top: 10px; background: #2a2e39; color: white; border: 1px solid #363c4e; padding: 10px; box-sizing: border-box; }
+        button { background: #2962ff; color: white; border: none; padding: 12px; cursor: pointer; border-radius: 4px; margin-top: 10px; width: 100%; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #848e9c; }
     </style>
 </head>
 <body>
 
-    <h1>Технический анализ Si-3.26 (Фьючерс USD/RUB)</h1>
+    <h1>Анализ Si (ISS MOEX API Direct)</h1>
 
     <div class="container">
-        <!-- Виджет графика через iframe (самый стабильный метод) -->
-        <div class="chart-box">
-            <iframe 
-                src="https://s.tradingview.com!" 
-                width="100%" 
-                height="100%" 
-                frameborder="0" 
-                allowfullscreen="true" 
-                scrolling="no" 
-                allowtransparency="true">
-            </iframe>
+        <div class="chart-box" id="chart_container">
+            <div id="loading">Загрузка данных с Московской биржи...</div>
         </div>
 
-        <!-- Ручной ввод новостного фона -->
         <div class="manual-input">
-            <h2>Новостной фон и заметки</h2>
-            
-            <label>Текущий тренд:</label>
-            <select id="trend">
-                <option value="up">Восходящий (Long)</option>
-                <option value="down">Нисходящий (Short)</option>
-                <option value="flat">Боковик (Flat)</option>
+            <h2>Заметки трейдера</h2>
+            <label>Тренд:</label>
+            <select id="trend" style="width:100%; padding:8px; background:#2a2e39; color:white; border:1px solid #363c4e;">
+                <option value="up">Long</option>
+                <option value="down">Short</option>
+                <option value="flat">Flat</option>
             </select>
-
-            <label>Важные новости и события:</label>
-            <textarea id="newsInput" placeholder="Введите ключевые события (ЦБ, нефть, санкции...)"></textarea>
-            
-            <button onclick="saveAnalysis()">Сохранить анализ</button>
-            
-            <div id="savedStatus" style="margin-top: 15px; font-size: 0.9em; color: #00ff00;"></div>
+            <textarea id="newsInput" placeholder="События дня..."></textarea>
+            <button onclick="saveAnalysis()">Сохранить данные</button>
+            <div id="savedStatus" style="color:#00ff00; margin-top:10px;"></div>
         </div>
     </div>
 
     <script>
-        // Функция сохранения
-        function saveAnalysis() {
-            const news = document.getElementById('newsInput').value;
-            const trend = document.getElementById('trend').value;
-            const date = new Date().toLocaleString();
-            
-            const analysis = { date, trend, news };
-            localStorage.setItem('si_analysis_data', JSON.stringify(analysis));
-            
-            document.getElementById('savedStatus').innerText = "Данные сохранены: " + date;
-            
-            // Очистка уведомления через 3 секунды
-            setTimeout(() => {
-                document.getElementById('savedStatus').innerText = "";
-            }, 3000);
+        // Настройки инструмента
+        const ticker = "SiH6"; // Фьючерс на март 2026
+
+        async function fetchMoexData() {
+            try {
+                // Прямой запрос к API MOEX (свечи за последние 100 дней)
+                const response = await fetch(`https://iss.moex.com{ticker}/candles.json?interval=24&from=2025-10-01`);
+                const data = await response.json();
+                
+                const candles = data.candles.data.map(item => ({
+                    time: item[6].split(' ')[0], // Формат YYYY-MM-DD
+                    open: item[0],
+                    high: item[2],
+                    low: item[3],
+                    close: item[1]
+                }));
+
+                drawChart(candles);
+                document.getElementById('loading').style.display = 'none';
+            } catch (e) {
+                document.getElementById('loading').innerText = "Ошибка загрузки данных MOEX";
+                console.error(e);
+            }
         }
 
-        // Загрузка данных при старте
-        window.onload = function() {
-            const saved = localStorage.getItem('si_analysis_data');
+        function drawChart(data) {
+            const chart = LightweightCharts.createChart(document.getElementById('chart_container'), {
+                layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' },
+                grid: { vertLines: { color: '#334158' }, horzLines: { color: '#334158' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                timeScale: { borderColor: '#485c7b' }
+            });
+
+            const candlestickSeries = chart.addCandlestickSeries({
+                upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+                wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+            });
+
+            candlestickSeries.setData(data);
+        }
+
+        function saveAnalysis() {
+            const analysis = {
+                news: document.getElementById('newsInput').value,
+                trend: document.getElementById('trend').value,
+                date: new Date().toLocaleString()
+            };
+            localStorage.setItem('moex_si_data', JSON.stringify(analysis));
+            document.getElementById('savedStatus').innerText = "Сохранено: " + analysis.date;
+        }
+
+        window.onload = () => {
+            fetchMoexData();
+            const saved = JSON.parse(localStorage.getItem('moex_si_data'));
             if (saved) {
-                const data = JSON.parse(saved);
-                document.getElementById('newsInput').value = data.news || "";
-                document.getElementById('trend').value = data.trend || "up";
+                document.getElementById('newsInput').value = saved.news;
+                document.getElementById('trend').value = saved.trend;
             }
         };
     </script>
